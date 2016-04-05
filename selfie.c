@@ -626,8 +626,7 @@ int OP_SW      = 43;
 int *OPCODES; // array of strings representing MIPS opcodes
 
 int FCT_SLL     = 0;
-int FCT_NOP     = 0;
-//int FCT_NOP     = FCT_SLL;
+//int FCT_NOP     = 0;
 int FCT_SRL     = 2;
 int FCT_SLLV    = 4;
 int FCT_SRLV    = 6;
@@ -670,7 +669,7 @@ void initDecoder() {
 
     FUNCTIONS = malloc(43 * SIZEOFINTSTAR);
 
-    *(FUNCTIONS + FCT_NOP)     = (int) "nop";
+    //*(FUNCTIONS + FCT_NOP)     = (int) "nop";
     *(FUNCTIONS + FCT_SLL)     = (int) "sll";
     *(FUNCTIONS + FCT_SRL)     = (int) "srl";
     *(FUNCTIONS + FCT_SLLV)    = (int) "sllv";
@@ -3533,7 +3532,7 @@ void emitMainEntry() {
     // since we load positive integers < 2^28 which take
     // no more than 8 instructions each, see load_integer
     while (i < 16) {
-        emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_NOP);
+        emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_SLL);
 
         i = i + 1;
     }
@@ -3874,15 +3873,15 @@ void emitRFormat(int opcode, int rs, int rt, int rd, int function) {
 
     if (opcode == OP_SPECIAL) {
         if (function == FCT_JR)
-            emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_NOP); // delay slot
+            emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_SLL); // delay slot
         else if (function == FCT_MFLO) {
             // In MIPS I-III two instructions after MFLO/MFHI
             // must not modify the LO/HI registers
-            emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_NOP); // pipeline delay
-            emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_NOP); // pipeline delay
+            emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_SLL); // pipeline delay
+            emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_SLL); // pipeline delay
         } else if (function == FCT_MFHI) {
-            emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_NOP); // pipeline delay
-            emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_NOP); // pipeline delay
+            emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_SLL); // pipeline delay
+            emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_SLL); // pipeline delay
         }
     }
 }
@@ -3891,15 +3890,15 @@ void emitIFormat(int opcode, int rs, int rt, int immediate) {
     emitInstruction(encodeIFormat(opcode, rs, rt, immediate));
 
     if (opcode == OP_BEQ)
-        emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_NOP); // delay slot
+        emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_SLL); // delay slot
     else if (opcode == OP_BNE)
-        emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_NOP); // delay slot
+        emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_SLL); // delay slot
 }
 
 void emitJFormat(int opcode, int instr_index) {
     emitInstruction(encodeJFormat(opcode, instr_index));
 
-    emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_NOP); // delay slot
+    emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_SLL); // delay slot
 }
 
 void fixup_relative(int fromAddress) {
@@ -5727,9 +5726,6 @@ void fct_sllv() {
         printRegister(rs);
         print((int*) ",");
         printRegister(rt);
-//      print((int*) ",");
-        printRegister(shamt);
-//
         if (interpret) {
             print((int*) ": ");
             printRegister(rd);
@@ -5743,10 +5739,6 @@ void fct_sllv() {
             printRegister(rt);
             print((int*) "=");
             print(itoa(*(registers+rt), string_buffer, 10, 0, 0));
-//            print((int*) ",");
-//            printRegister(shamt);
-//            print((int*) "=");
-//            print(itoa(*(registers+shamt), string_buffer, 10, 0, 0));
         }
     }
 
@@ -5776,8 +5768,6 @@ void fct_srlv() {
         printRegister(rs);
         print((int*) ",");
         printRegister(rt);
-//      print((int*) ",");
-//      printRegister(shamt);
         if (interpret) {
             print((int*) ": ");
             printRegister(rd);
@@ -5791,10 +5781,6 @@ void fct_srlv() {
             printRegister(rt);
             print((int*) "=");
             print(itoa(*(registers+rt), string_buffer, 10, 0, 0));
-//            print((int*) ",");
-//            printRegister(shamt);
-//            print((int*) "=");
-//            print(itoa(*(registers+shamt), string_buffer, 10, 0, 0));
         }
     }
 
@@ -5906,8 +5892,8 @@ void execute() {
     }
 
     if (opcode == OP_SPECIAL) {
-        if (function == FCT_NOP)
-            fct_nop();
+        if (function == FCT_SLL)
+            fct_sll();
         else if (function == FCT_ADDU)
             fct_addu();
         else if (function == FCT_SUBU)
@@ -6632,7 +6618,7 @@ int main(int argc, int *argv) {
     
     initInterpreter();
 
-    print((int*)"This is the C-star-fox Selfie");
+    print((int*)"This is the c-star-fox Selfie");
     println();
 
     selfieName = (int*) *argv;
