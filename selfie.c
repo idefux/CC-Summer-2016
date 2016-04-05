@@ -5625,45 +5625,54 @@ void fct_sll() {
     if (debug) {
         printFunction(function);
         print((int*) " ");
-        printRegister(rd);
-        print((int*) ",");
-        printRegister(rs);
-        print((int*) ",");
-        printRegister(rt);
-        print((int*) ",");
-        printRegister(shamt);
-        if (interpret) {
-            print((int*) ": ");
+        if (*(registers+shamt) == 0) {
+            print((int*) "(nop)");
+        }
+        else {
             printRegister(rd);
-            print((int*) "=");
-            print(itoa(*(registers+rd), string_buffer, 10, 0, 0));
             print((int*) ",");
             printRegister(rs);
-            print((int*) "=");
-            print(itoa(*(registers+rs), string_buffer, 10, 0, 0));
             print((int*) ",");
             printRegister(rt);
-            print((int*) "=");
-            print(itoa(*(registers+rt), string_buffer, 10, 0, 0));
             print((int*) ",");
             printRegister(shamt);
-            print((int*) "=");
-            print(itoa(*(registers+shamt), string_buffer, 10, 0, 0));
+            if (interpret) {
+                print((int*) ": ");
+                printRegister(rd);
+                print((int*) "=");
+                print(itoa(*(registers+rd), string_buffer, 10, 0, 0));
+                print((int*) ",");
+                printRegister(rs);
+                print((int*) "=");
+                print(itoa(*(registers+rs), string_buffer, 10, 0, 0));
+                print((int*) ",");
+                printRegister(rt);
+                print((int*) "=");
+                print(itoa(*(registers+rt), string_buffer, 10, 0, 0));
+                print((int*) ",");
+                printRegister(shamt);
+                print((int*) "=");
+                print(itoa(*(registers+shamt), string_buffer, 10, 0, 0));
+            }
         }
     }
 
     if (interpret) {
-        *(registers+rd) = leftShift(*(registers+rt), shamt);
+        if (*(registers+shamt) != 0) {
+            *(registers+rd) = leftShift(*(registers+rt), shamt);
+        }
 
         pc = pc + WORDSIZE;
     }
 
     if (debug) {
-        if (interpret) {
-            print((int*) " -> ");
-            printRegister(rd);
-            print((int*) "=");
-            print(itoa(*(registers+rd), string_buffer, 10, 0, 0));
+        if (*(registers+shamt) != 0) {
+            if (interpret) {
+                print((int*) " -> ");
+                printRegister(rd);
+                print((int*) "=");
+                print(itoa(*(registers+rd), string_buffer, 10, 0, 0));
+            }
         }
         println();
     }
