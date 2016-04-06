@@ -37,7 +37,7 @@ term             = factor { ( "*" | "/" | "%" ) factor } .
 
 simpleExpression = [ "-" ] term { ( "+" | "-" ) term } .
 
-extExpression    = [ "-" ] simpleExpression { ( "<<" | ">>" ) simpleExpression } .
+extExpression    = simpleExpression { ( "<<" | ">>" ) simpleExpression } .
 
 expression       = extExpression [ ( "==" | "!=" | "<" | ">" | "<=" | ">=" ) extExpression ] .
 
