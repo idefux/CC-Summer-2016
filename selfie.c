@@ -431,6 +431,7 @@ int isLiteral();
 int isStarOrDivOrModulo();
 int isPlusOrMinus();
 int isComparison();
+int isShiftLeftOrRight();
 
 int lookForFactor();
 int lookForStatement();
@@ -457,6 +458,7 @@ int  gr_call(int *procedure);
 int  gr_factor();
 int  gr_term();
 int  gr_simpleExpression();
+int  gr_extExpression();
 int  gr_expression();
 void gr_while();
 void gr_if();
@@ -2124,6 +2126,15 @@ int isComparison() {
         return 0;
 }
 
+int isShiftLeftOrRight() {
+    if (symbol == SYM_SHIFTLEFT)
+        return 1;
+    else if (symbol == SYM_SHIFTRIGHT)
+        return 1;
+    else
+        return 0;
+}
+
 int lookForFactor() {
     if (symbol == SYM_LPARENTHESIS)
         return 0;
@@ -2790,7 +2801,7 @@ int gr_simpleExpression() {
     return ltype;
 }
 
-int gr_expression() {
+int gr_extExpression() {
     int ltype;
     int operatorSymbol;
     int rtype;
@@ -2801,13 +2812,51 @@ int gr_expression() {
 
     // assert: allocatedTemporaries == n + 1
 
+    // << or >> ?
+    if (isShiftLeftOrRight()) {
+        operatorSymbol = symbol;
+
+        getSymbol();
+
+        rtype = gr_simpleExpression();
+
+        // assert: allocatedTemporaries == n + 2
+
+        if (operatorSymbol == SYM_SHIFTLEFT) {
+
+            emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SLLV);
+
+        } else if (operatorSymbol == SYM_SHIFTRIGHT) {
+
+            emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SRLV);
+        }
+
+        tfree(1);
+    }
+
+    // assert: allocatedTemporaries == n + 1
+
+    return ltype;
+}
+
+int gr_expression() {
+    int ltype;
+    int operatorSymbol;
+    int rtype;
+
+    // assert: n = allocatedTemporaries
+
+    ltype = gr_extExpression();
+
+    // assert: allocatedTemporaries == n + 1
+
     //optional: ==, !=, <, >, <=, >= simpleExpression
     if (isComparison()) {
         operatorSymbol = symbol;
 
         getSymbol();
 
-        rtype = gr_simpleExpression();
+        rtype = gr_extExpression();
 
         // assert: allocatedTemporaries == n + 2
 
@@ -5764,7 +5813,7 @@ void fct_sllv() {
     }
 
     if (interpret) {
-        *(registers+rd) = leftShift(*(registers+rt), *(registers+rs));
+        *(registers+rd) = leftShift(*(registers+rs), *(registers+rt));
 
         pc = pc + WORDSIZE;
     }
@@ -5806,7 +5855,7 @@ void fct_srlv() {
     }
 
     if (interpret) {
-        *(registers+rd) = rightShift(*(registers+rt), *(registers+rs));
+        *(registers+rd) = rightShift(*(registers+rs), *(registers+rt));
 
         pc = pc + WORDSIZE;
     }
@@ -5915,6 +5964,12 @@ void execute() {
     if (opcode == OP_SPECIAL) {
         if (function == FCT_SLL)
             fct_sll();
+        else if (function == FCT_SRL)
+            fct_srl();
+        else if (function == FCT_SLLV)
+            fct_sllv();
+        else if (function == FCT_SRLV)
+            fct_srlv();
         else if (function == FCT_ADDU)
             fct_addu();
         else if (function == FCT_SUBU)
