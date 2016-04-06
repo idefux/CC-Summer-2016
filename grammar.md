@@ -37,7 +37,9 @@ term             = factor { ( "*" | "/" | "%" ) factor } .
 
 simpleExpression = [ "-" ] term { ( "+" | "-" ) term } .
 
-expression       = simpleExpression [ ( "==" | "!=" | "<" | ">" | "<=" | ">=" ) simpleExpression ] .
+extExpression    = [ "-" ] simpleExpression { ( "<<" | ">>" ) simpleExpression } .
+
+expression       = extExpression [ ( "==" | "!=" | "<" | ">" | "<=" | ">=" ) extExpression ] .
 
 while            = "while" "(" expression ")" 
                              ( statement |
