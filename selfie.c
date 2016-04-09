@@ -2847,11 +2847,11 @@ int gr_extExpression() {
 
         if (operatorSymbol == SYM_SHIFTLEFT) {
 
-            emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SLLV);
+            emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_SLLV);
 
         } else if (operatorSymbol == SYM_SHIFTRIGHT) {
 
-            emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SRLV);
+            emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_SRLV);
         }
 
         tfree(1);
@@ -5854,7 +5854,7 @@ void fct_sllv() {
     }
 
     if (interpret) {
-        *(registers+rd) = leftShift(*(registers+rs), *(registers+rt));
+        *(registers+rd) = leftShift(*(registers+rt), *(registers+rs));
 
         pc = pc + WORDSIZE;
     }
@@ -5896,7 +5896,7 @@ void fct_srlv() {
     }
 
     if (interpret) {
-        *(registers+rd) = rightShift(*(registers+rs), *(registers+rt));
+        *(registers+rd) = rightShift(*(registers+rt), *(registers+rs));
 
         pc = pc + WORDSIZE;
     }
