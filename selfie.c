@@ -2836,7 +2836,7 @@ int gr_extExpression() {
     // assert: allocatedTemporaries == n + 1
 
     // << or >> ?
-    if (isShiftLeftOrRight()) {
+    while (isShiftLeftOrRight()) {
         operatorSymbol = symbol;
 
         getSymbol();
