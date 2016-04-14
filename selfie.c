@@ -460,12 +460,15 @@ int  help_call_codegen(int *entry, int *procedure);
 void help_procedure_prologue(int localVariables);
 void help_procedure_epilogue(int parameters);
 
+int  isConstant(int* operandInfo);
+int  getConstantsValue(int* operandInfo);
+
 int  gr_call(int *procedure);
-int  gr_factor();
-int  gr_term();
-int  gr_simpleExpression();
-int  gr_extExpression();
-int  gr_expression();
+int  gr_factor(int* operandInfo);
+int  gr_term(int* operandInfo);
+int  gr_simpleExpression(int* operandInfo);
+int  gr_extExpression(int* operandInfo);
+int  gr_expression(int* operandInfo);
 void gr_while();
 void gr_if();
 void gr_return(int returnType);
@@ -475,6 +478,10 @@ void gr_variable(int offset);
 void gr_initialization(int *name, int offset, int type);
 void gr_procedure(int *procedure, int returnType);
 void gr_cstar();
+
+// ------------------------ GLOBAL CONSTANTS -----------------------
+
+int CONSTANT = 1;   // operand is a constant value
 
 // ------------------------ GLOBAL VARIABLES -----------------------
 
@@ -2479,10 +2486,37 @@ void help_procedure_epilogue(int parameters) {
     emitRFormat(OP_SPECIAL, REG_RA, 0, 0, FCT_JR);
 }
 
+int isConstant(int* operandInfo) {
+    return 0;
+    return (*operandInfo == CONSTANT);
+}
+
+int getConstantsValue(int* operandInfo) {
+    return 0;
+    return *(operandInfo + 1);
+}
+
+int bothAreConstants(int leftIsConstant, int* rightOperandInfo) {
+    // TODO: Remove
+    return 0;
+    if (leftIsConstant) {
+        if (isConstant(rightOperandInfo)) {
+            return 1;
+        } else {
+            return 0;
+        }
+    } else {
+        return 0;
+    }
+}
+
 int gr_call(int *procedure) {
     int *entry;
     int numberOfTemporaries;
     int type;
+    int *operandInfo;
+
+    operandInfo = malloc(2 * SIZEOFINT);
 
     // assert: n = allocatedTemporaries
 
@@ -2499,7 +2533,7 @@ int gr_call(int *procedure) {
     // assert: allocatedTemporaries == 0
 
     if (isExpression()) {
-        gr_expression();
+        gr_expression(operandInfo);
 
         // TODO: check if types/number of parameters is correct
         
@@ -2512,7 +2546,7 @@ int gr_call(int *procedure) {
         while (symbol == SYM_COMMA) {
             getSymbol();
 
-            gr_expression();
+            gr_expression(operandInfo);
 
             // push more parameters onto stack
             emitIFormat(OP_ADDIU, REG_SP, REG_SP, -WORDSIZE);
@@ -2548,7 +2582,7 @@ int gr_call(int *procedure) {
     return type;
 }
 
-int gr_factor() {
+int gr_factor(int* operandInfo) {
     int hasCast;
     int cast;
     int type;
@@ -2587,7 +2621,7 @@ int gr_factor() {
 
         // not a cast: "(" expression ")"
         } else {
-            type = gr_expression();
+            type = gr_expression(operandInfo);
 
             if (symbol == SYM_RPARENTHESIS)
                 getSymbol();
@@ -2614,7 +2648,7 @@ int gr_factor() {
         } else if (symbol == SYM_LPARENTHESIS) {
             getSymbol();
 
-            type = gr_expression();
+            type = gr_expression(operandInfo);
 
             if (symbol == SYM_RPARENTHESIS)
                 getSymbol();
@@ -2684,7 +2718,7 @@ int gr_factor() {
     } else if (symbol == SYM_LPARENTHESIS) {
         getSymbol();
 
-        type = gr_expression();
+        type = gr_expression(operandInfo);
 
         if (symbol == SYM_RPARENTHESIS)
             getSymbol();
@@ -2701,14 +2735,14 @@ int gr_factor() {
         return type;
 }
 
-int gr_term() {
+int gr_term(int* operandInfo) {
     int ltype;
     int operatorSymbol;
     int rtype;
 
     // assert: n = allocatedTemporaries
 
-    ltype = gr_factor();
+    ltype = gr_factor(operandInfo);
 
     // assert: allocatedTemporaries == n + 1
 
@@ -2718,7 +2752,7 @@ int gr_term() {
 
         getSymbol();
 
-        rtype = gr_factor();
+        rtype = gr_factor(operandInfo);
 
         // assert: allocatedTemporaries == n + 2
         
@@ -2746,7 +2780,7 @@ int gr_term() {
     return ltype;
 }
 
-int gr_simpleExpression() {
+int gr_simpleExpression(int* operandInfo) {
     int sign;
     int ltype;
     int operatorSymbol;
@@ -2775,7 +2809,7 @@ int gr_simpleExpression() {
     } else
         sign = 0;
 
-    ltype = gr_term();
+    ltype = gr_term(operandInfo);
 
     // assert: allocatedTemporaries == n + 1
 
@@ -2795,7 +2829,7 @@ int gr_simpleExpression() {
 
         getSymbol();
 
-        rtype = gr_term();
+        rtype = gr_term(operandInfo);
 
         // assert: allocatedTemporaries == n + 2
 
@@ -2824,14 +2858,14 @@ int gr_simpleExpression() {
     return ltype;
 }
 
-int gr_extExpression() {
+int gr_extExpression(int* operandInfo) {
     int ltype;
     int operatorSymbol;
     int rtype;
 
     // assert: n = allocatedTemporaries
 
-    ltype = gr_simpleExpression();
+    ltype = gr_simpleExpression(operandInfo);
 
     // assert: allocatedTemporaries == n + 1
 
@@ -2841,7 +2875,7 @@ int gr_extExpression() {
 
         getSymbol();
 
-        rtype = gr_simpleExpression();
+        rtype = gr_simpleExpression(operandInfo);
 
         // assert: allocatedTemporaries == n + 2
 
@@ -2862,14 +2896,21 @@ int gr_extExpression() {
     return ltype;
 }
 
-int gr_expression() {
+int gr_expression(int* operandInfo) {
     int ltype;
     int operatorSymbol;
     int rtype;
+    int lIsConstant;
+    int lConstantValue;
 
     // assert: n = allocatedTemporaries
 
-    ltype = gr_extExpression();
+    ltype = gr_extExpression(operandInfo);
+
+    lIsConstant = isConstant(operandInfo);
+    if (lIsConstant) {
+        lConstantValue = getConstantsValue(operandInfo);
+    }
 
     // assert: allocatedTemporaries == n + 1
 
@@ -2879,7 +2920,7 @@ int gr_expression() {
 
         getSymbol();
 
-        rtype = gr_extExpression();
+        rtype = gr_extExpression(operandInfo);
 
         // assert: allocatedTemporaries == n + 2
 
@@ -2887,60 +2928,110 @@ int gr_expression() {
             typeWarning(ltype, rtype);
 
         if (operatorSymbol == SYM_EQUALITY) {
-            // subtract, if result = 0 then 1, else 0
-            emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SUBU);
 
-            tfree(1);
+            if (bothAreConstants(lIsConstant, operandInfo)) {
+                
+                *(registers + currentTemporary()) = *(registers + currentTemporary()) == *(registers + previousTemporary());
+                tfree(1);
 
-            emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), 4);
-            emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 0);
-            emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), 2);
-            emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 1);
+            } else {
+                // subtract, if result = 0 then 1, else 0
+                emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SUBU);
+
+                tfree(1);
+
+                emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), 4);
+                emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 0);
+                emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), 2);
+                emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 1);
+            }
 
         } else if (operatorSymbol == SYM_NOTEQ) {
-            // subtract, if result = 0 then 0, else 1
-            emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SUBU);
+            
+            if (bothAreConstants(lIsConstant, operandInfo)) {
+                
+                *(registers + currentTemporary()) = *(registers + currentTemporary()) != *(registers + previousTemporary());
+                tfree(1);
 
-            tfree(1);
+            } else {
+                // subtract, if result = 0 then 0, else 1
+                emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SUBU);
 
-            emitIFormat(OP_BNE, REG_ZR, currentTemporary(), 4);
-            emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 0);
-            emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), 2);
-            emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 1);
+                tfree(1);
+
+                emitIFormat(OP_BNE, REG_ZR, currentTemporary(), 4);
+                emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 0);
+                emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), 2);
+                emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 1);
+            }
 
         } else if (operatorSymbol == SYM_LT) {
-            // set to 1 if a < b, else 0
-            emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SLT);
+            
+            if (bothAreConstants(lIsConstant, operandInfo)) {
+                
+                *(registers + currentTemporary()) = *(registers + currentTemporary()) < *(registers + previousTemporary());
 
-            tfree(1);
+                tfree(1);
+
+            } else {
+
+                // set to 1 if a < b, else 0
+                emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SLT);
+
+                tfree(1);
+            }
 
         } else if (operatorSymbol == SYM_GT) {
-            // set to 1 if b < a, else 0
-            emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_SLT);
+            
+            if (bothAreConstants(lIsConstant, operandInfo)) {
+                
+                *(registers + currentTemporary()) = *(registers + currentTemporary()) > *(registers + previousTemporary());
+                tfree(1);
 
-            tfree(1);
+            } else {
+                // set to 1 if b < a, else 0
+                emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_SLT);
+
+                tfree(1);
+            }
 
         } else if (operatorSymbol == SYM_LEQ) {
-            // if b < a set 0, else 1
-            emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_SLT);
+            
+            if (bothAreConstants(lIsConstant, operandInfo)) {
+                
+                *(registers + currentTemporary()) = *(registers + currentTemporary()) <= *(registers + previousTemporary());
+                tfree(1);
 
-            tfree(1);
+            } else {
+                // if b < a set 0, else 1
+                emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_SLT);
 
-            emitIFormat(OP_BNE, REG_ZR, currentTemporary(), 4);
-            emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 1);
-            emitIFormat(OP_BEQ, REG_ZR, REG_ZR, 2);
-            emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 0);
+                tfree(1);
+
+                emitIFormat(OP_BNE, REG_ZR, currentTemporary(), 4);
+                emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 1);
+                emitIFormat(OP_BEQ, REG_ZR, REG_ZR, 2);
+                emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 0);
+            }
 
         } else if (operatorSymbol == SYM_GEQ) {
-            // if a < b set 0, else 1
-            emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SLT);
+            
+            if (bothAreConstants(lIsConstant, operandInfo)) {
+                
+                *(registers + currentTemporary()) = *(registers + currentTemporary()) >= *(registers + previousTemporary());
+                tfree(1);
 
-            tfree(1);
+            } else {
+                // if a < b set 0, else 1
+                emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SLT);
 
-            emitIFormat(OP_BNE, REG_ZR, currentTemporary(), 4);
-            emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 1);
-            emitIFormat(OP_BEQ, REG_ZR, REG_ZR, 2);
-            emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 0);
+                tfree(1);
+
+                emitIFormat(OP_BNE, REG_ZR, currentTemporary(), 4);
+                emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 1);
+                emitIFormat(OP_BEQ, REG_ZR, REG_ZR, 2);
+                emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 0);
+            }
         }
     }
     
@@ -2952,12 +3043,15 @@ int gr_expression() {
 void gr_while() {
     int brBackToWhile;
     int brForwardToEnd;
+    int *operandInfo;
 
     // assert: allocatedTemporaries == 0
 
     brBackToWhile = binaryLength;
 
     brForwardToEnd = 0;
+
+    operandInfo = malloc(2 * SIZEOFINT);
 
     // while ( expression )
     if (symbol == SYM_WHILE) {
@@ -2966,7 +3060,7 @@ void gr_while() {
         if (symbol == SYM_LPARENTHESIS) {
             getSymbol();
 
-            gr_expression();
+            gr_expression(operandInfo);
 
             // do not know where to branch, fixup later
             brForwardToEnd = binaryLength;
@@ -3017,6 +3111,9 @@ void gr_while() {
 void gr_if() {
     int brForwardToElseOrEnd;
     int brForwardToEnd;
+    int *operandInfo;
+
+    operandInfo = malloc(2 * SIZEOFINT);
 
     // assert: allocatedTemporaries == 0
 
@@ -3027,7 +3124,7 @@ void gr_if() {
         if (symbol == SYM_LPARENTHESIS) {
             getSymbol();
 
-            gr_expression();
+            gr_expression(operandInfo);
 
             // if the "if" case is not true, we jump to "else" (if provided)
             brForwardToElseOrEnd = binaryLength;
@@ -3105,6 +3202,9 @@ void gr_if() {
 
 void gr_return(int returnType) {
     int type;
+    int *operandInfo;
+
+    operandInfo = malloc(2 * SIZEOFINT);
 
     // assert: allocatedTemporaries == 0
 
@@ -3115,7 +3215,7 @@ void gr_return(int returnType) {
 
     // optional: expression
     if (symbol != SYM_SEMICOLON) {
-        type = gr_expression();
+        type = gr_expression(operandInfo);
 
         if (returnType == VOID_T)
             typeWarning(type, returnType);
@@ -3144,6 +3244,9 @@ void gr_statement() {
     int rtype;
     int *variableOrProcedureName;
     int *entry;
+    int *operandInfo;
+
+    operandInfo = malloc(2 * SIZEOFINT);
 
     // assert: allocatedTemporaries == 0;
 
@@ -3173,7 +3276,7 @@ void gr_statement() {
             if (symbol == SYM_ASSIGN) {
                 getSymbol();
 
-                rtype = gr_expression();
+                rtype = gr_expression(operandInfo);
 
                 if (rtype != INT_T)
                     typeWarning(INT_T, rtype);
@@ -3193,7 +3296,7 @@ void gr_statement() {
         } else if (symbol == SYM_LPARENTHESIS) {
             getSymbol();
 
-            ltype = gr_expression();
+            ltype = gr_expression(operandInfo);
 
             if (ltype != INTSTAR_T)
                 typeWarning(INTSTAR_T, ltype);
@@ -3205,7 +3308,7 @@ void gr_statement() {
                 if (symbol == SYM_ASSIGN) {
                     getSymbol();
 
-                    rtype = gr_expression();
+                    rtype = gr_expression(operandInfo);
 
                     if (rtype != INT_T)
                         typeWarning(INT_T, rtype);
@@ -3253,7 +3356,7 @@ void gr_statement() {
 
             getSymbol();
 
-            rtype = gr_expression();
+            rtype = gr_expression(operandInfo);
 
             if (ltype != rtype)
                 typeWarning(ltype, rtype);
