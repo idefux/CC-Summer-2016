@@ -1,2 +1,4 @@
 selfie
-selfie.m
+*.m
+*.s
+*test*
