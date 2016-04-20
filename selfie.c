@@ -2938,8 +2938,7 @@ int gr_simpleExpression(int *operandInfo) {
                 if (ltype == INTSTAR_T) {
                     if (rtype == INT_T)
                         // pointer arithmetic: factor of 2^2 of integer operand
-                        // Stefan: is << 2 less expensive than * 4 ?
-                        rValue = rValue * 4;
+                        rValue = rValue << 4;
                 } else if (rtype == INTSTAR_T)
                     typeWarning(ltype, rtype);
 
@@ -2950,9 +2949,7 @@ int gr_simpleExpression(int *operandInfo) {
                     typeWarning(ltype, rtype);
 
                 lValue = lValue - rValue;
-                print("lValue: ");
-                print((int*) itoa(lValue, string_buffer, 10, 0, 0));
-                println();
+
             }
 
             // reset as constant value
