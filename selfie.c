@@ -3944,9 +3944,8 @@ void gr_cstar() {
         gr_procedure(variableOrProcedureName, type, operandInfo);
       } else
         syntaxErrorSymbol(SYM_IDENTIFIER);
-      } else {
-        type = gr_type();
-
+    } else {
+      type = gr_type();
 
       if (symbol == SYM_IDENTIFIER) {
         variableOrProcedureName = identifier;
@@ -3957,6 +3956,8 @@ void gr_cstar() {
         if (symbol == SYM_LPARENTHESIS)
           gr_procedure(variableOrProcedureName, type, operandInfo);
         else {
+          // Stefan TODO: set allocatedMemory further down, may be an array
+          // declaration. So , we do not know how much memory is needed
           allocatedMemory = allocatedMemory + WORDSIZE;
 
           // type identifier ";" global variable declaration
@@ -3964,6 +3965,15 @@ void gr_cstar() {
             createSymbolTableEntry(GLOBAL_TABLE, variableOrProcedureName, lineNumber, VARIABLE, type, 0, -allocatedMemory);
 
             getSymbol();
+
+          // Stefan TODO: look for "[" -> array
+          // only reserve memory
+          // no array initialization capabilites desired
+          // int identifier[]; => is a regular pointer, look how pointers are doubly-linked
+          // int identifier[10]; => allocate 10 * WORDSIZE
+          // int identifier[] => missing SEMICOLON
+          // int identifier[-1] => invalid
+          // int identifier[0] => invalid
 
           // type identifier "=" global variable definition
           } else
