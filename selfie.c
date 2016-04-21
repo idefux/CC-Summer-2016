@@ -3120,109 +3120,65 @@ int gr_expression(int *operandInfo) {
 
       if (operatorSymbol == SYM_EQUALITY) {
 
-        if (0) {
+        // subtract, if result = 0 then 1, else 0
+        emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SUBU);
 
-          *(registers + currentTemporary()) = *(registers + currentTemporary()) == *(registers + previousTemporary());
-          tfree(1);
+        tfree(1);
 
-        } else {
-          // subtract, if result = 0 then 1, else 0
-          emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SUBU);
-
-          tfree(1);
-
-          emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), 4);
-          emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 0);
-          emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), 2);
-          emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 1);
-        }
+        emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), 4);
+        emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 0);
+        emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), 2);
+        emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 1);
 
       } else if (operatorSymbol == SYM_NOTEQ) {
 
-        if (0) {
+        // subtract, if result = 0 then 0, else 1
+        emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SUBU);
 
-          *(registers + currentTemporary()) = *(registers + currentTemporary()) != *(registers + previousTemporary());
-          tfree(1);
+        tfree(1);
 
-        } else {
-          // subtract, if result = 0 then 0, else 1
-          emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SUBU);
-
-          tfree(1);
-
-          emitIFormat(OP_BNE, REG_ZR, currentTemporary(), 4);
-          emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 0);
-          emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), 2);
-          emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 1);
-        }
+        emitIFormat(OP_BNE, REG_ZR, currentTemporary(), 4);
+        emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 0);
+        emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), 2);
+        emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 1);
 
       } else if (operatorSymbol == SYM_LT) {
 
-        if (0) {
+        // set to 1 if a < b, else 0
+        emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SLT);
 
-          *(registers + currentTemporary()) = *(registers + currentTemporary()) < *(registers + previousTemporary());
-
-          tfree(1);
-
-        } else {
-
-          // set to 1 if a < b, else 0
-          emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SLT);
-
-          tfree(1);
-        }
+        tfree(1);
 
       } else if (operatorSymbol == SYM_GT) {
 
-        if (0) {
+        // set to 1 if b < a, else 0
+        emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_SLT);
 
-          *(registers + currentTemporary()) = *(registers + currentTemporary()) > *(registers + previousTemporary());
-          tfree(1);
-
-        } else {
-          // set to 1 if b < a, else 0
-          emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_SLT);
-
-          tfree(1);
-        }
+        tfree(1);
 
       } else if (operatorSymbol == SYM_LEQ) {
 
-        if (0) {
+        // if b < a set 0, else 1
+        emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_SLT);
 
-          *(registers + currentTemporary()) = *(registers + currentTemporary()) <= *(registers + previousTemporary());
-          tfree(1);
+        tfree(1);
 
-        } else {
-          // if b < a set 0, else 1
-          emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_SLT);
-
-          tfree(1);
-
-          emitIFormat(OP_BNE, REG_ZR, currentTemporary(), 4);
-          emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 1);
-          emitIFormat(OP_BEQ, REG_ZR, REG_ZR, 2);
-          emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 0);
-        }
+        emitIFormat(OP_BNE, REG_ZR, currentTemporary(), 4);
+        emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 1);
+        emitIFormat(OP_BEQ, REG_ZR, REG_ZR, 2);
+        emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 0);
 
       } else if (operatorSymbol == SYM_GEQ) {
 
-        if (0) {
+        // if a < b set 0, else 1
+        emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SLT);
 
-          *(registers + currentTemporary()) = *(registers + currentTemporary()) >= *(registers + previousTemporary());
-          tfree(1);
+        tfree(1);
 
-        } else {
-          // if a < b set 0, else 1
-          emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SLT);
-
-          tfree(1);
-
-          emitIFormat(OP_BNE, REG_ZR, currentTemporary(), 4);
-          emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 1);
-          emitIFormat(OP_BEQ, REG_ZR, REG_ZR, 2);
-          emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 0);
-        }
+        emitIFormat(OP_BNE, REG_ZR, currentTemporary(), 4);
+        emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 1);
+        emitIFormat(OP_BEQ, REG_ZR, REG_ZR, 2);
+        emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 0);
       }
     }
   } else {
