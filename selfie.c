@@ -2871,6 +2871,8 @@ int gr_simpleExpression(int *operandInfo) {
   int lValue;
   int rIsConstant;
   int rValue;
+  int loadAndEmitPending;
+  int valuePending;
 
   // assert: n = allocatedTemporaries
 
@@ -2958,10 +2960,24 @@ int gr_simpleExpression(int *operandInfo) {
 
       ltype = INT_T;
 
+    } else if (lIsConstant) {
+      // l Is Constant, r Is Not => Load l, r and emit
+      unsetConstant(operandInfo);
+      delayedLoading(lIsConstant, lValue, rIsConstant, rValue);
+      doEmit = 1;
+
+    } else if (rIsConstant){
+      // l Is Not a Constant, but r Is a Constant => Load l, set r as new l
+      // If there is another iteration the
+
+      delayedEmit = 1;
+
     } else {
       unsetConstant(operandInfo);
       delayedLoading(lIsConstant, lValue, rIsConstant, rValue);
+    }
 
+    if (doEmit) {
       if (operatorSymbol == SYM_PLUS) {
         if (ltype == INTSTAR_T) {
           if (rtype == INT_T)
@@ -2980,7 +2996,6 @@ int gr_simpleExpression(int *operandInfo) {
       }
 
       tfree(1);
-
     }
   }
 
