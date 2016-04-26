@@ -6,6 +6,7 @@ DFLAGS := -g -O0
 selfie: selfie.c
 	$(CC) $(CFLAGS) $< -o $@
 
+# Compile selfie.c into selfie executable include debug symbols
 selfie_gdb: selfie.c
 	$(CC) $(CFLAGS) $(DFLAGS) $< -o $@
 
@@ -49,6 +50,10 @@ test_constant_folding: selfie
 	!(./selfie -c test_constant_folding_6.tmp -d 1 | grep -E 't[0-7]=10\s|t[0-7]=8\s|t[0-7]=2\s')
 	./selfie -c test_constant_folding_6.tmp -d 1 | grep -E 'exit code 89'
 	rm -f test_constant_folding_6.tmp
+
+# Test array functionality
+test_arrays: selfie
+	./selfie -c arrays.c
 
 # Clean up
 clean:

@@ -145,6 +145,8 @@ int CHAR_EXCLAMATION  = '!';
 int CHAR_PERCENTAGE   = '%';
 int CHAR_SINGLEQUOTE  = 39; // ASCII code 39 = '
 int CHAR_DOUBLEQUOTE  = '"';
+int CHAR_LBRACKET     = '[';
+int CHAR_RBRACKET     = ']';
 
 int SIZEOFINT     = 4; // must be the same as WORDSIZE
 int SIZEOFINTSTAR = 4; // must be the same as WORDSIZE
@@ -284,6 +286,8 @@ int SYM_CHARACTER    = 26; // character
 int SYM_STRING       = 27; // string
 int SYM_SHIFTLEFT    = 28; // <<
 int SYM_SHIFTRIGHT   = 29; // >>
+int SYM_LBRACKET     = 30; // [
+int SYM_RBRACKET     = 31; // ]
 
 int* SYMBOLS; // array of strings representing symbols
 
@@ -315,7 +319,7 @@ int  sourceFD   = 0;        // file descriptor of open source file
 // ------------------------- INITIALIZATION ------------------------
 
 void initScanner () {
-  SYMBOLS = malloc(30 * SIZEOFINTSTAR);
+  SYMBOLS = malloc(32 * SIZEOFINTSTAR);
 
   *(SYMBOLS + SYM_IDENTIFIER)   = (int) "identifier";
   *(SYMBOLS + SYM_INTEGER)      = (int) "integer";
@@ -347,6 +351,8 @@ void initScanner () {
   *(SYMBOLS + SYM_STRING)       = (int) "string";
   *(SYMBOLS + SYM_SHIFTLEFT)    = (int) "<<";
   *(SYMBOLS + SYM_SHIFTRIGHT)   = (int) ">>";
+  *(SYMBOLS + SYM_LBRACKET)     = (int) "[";
+  *(SYMBOLS + SYM_RBRACKET)     = (int) "]";
 
   character = CHAR_EOF;
   symbol    = SYM_EOF;
@@ -459,7 +465,7 @@ int* putType(int type);
 void typeWarning(int expected, int found);
 
 int* getVariable(int* variable);
-int  load_variable(int* variable);
+int  load_variable(int* variable, int arrayIndex);
 void load_integer(int value);
 void load_string(int* string);
 
@@ -1947,6 +1953,16 @@ int getSymbol() {
 
         symbol = SYM_RBRACE;
 
+    } else if (character == CHAR_LBRACKET) {
+        getCharacter();
+
+        symbol = SYM_LBRACKET;
+
+    } else if (character == CHAR_RBRACKET) {
+        getCharacter();
+
+        symbol = SYM_RBRACKET;
+
     } else if (character == CHAR_COMMA) {
         getCharacter();
 
@@ -2383,14 +2399,14 @@ int* getVariable(int* variable) {
   return entry;
 }
 
-int load_variable(int* variable) {
+int load_variable(int* variable, int arrayIndex) {
   int* entry;
 
   entry = getVariable(variable);
 
   talloc();
 
-  emitIFormat(OP_LW, getScope(entry), currentTemporary(), getAddress(entry));
+  emitIFormat(OP_LW, getScope(entry), currentTemporary(), getAddress(entry) - arrayIndex * WORDSIZE);
 
   return getType(entry);
 }
@@ -2639,6 +2655,8 @@ int gr_factor(int *operandInfo) {
 
   int *variableOrProcedureName;
 
+  int arrayIndex;
+
   unsetConstant(operandInfo);
 
   // assert: n = allocatedTemporaries
@@ -2692,7 +2710,7 @@ int gr_factor(int *operandInfo) {
 
     // ["*"] identifier
     if (symbol == SYM_IDENTIFIER) {
-      type = load_variable(identifier);
+      type = load_variable(identifier, 0);
 
       getSymbol();
 
@@ -2735,10 +2753,32 @@ int gr_factor(int *operandInfo) {
       emitIFormat(OP_ADDIU, REG_V0, currentTemporary(), 0);
 
       // reset return register
-        emitIFormat(OP_ADDIU, REG_ZR, REG_V0, 0);
+      emitIFormat(OP_ADDIU, REG_ZR, REG_V0, 0);
+
+    } else if (symbol == SYM_LBRACKET) {
+      getSymbol();
+
+      if (symbol == SYM_INTEGER) {
+        if (literal >= 0)
+          arrayIndex = literal;
+        // else
+          // Stefan TODO: Fire index error
+
+        getSymbol();
+
+        if (symbol == SYM_RBRACKET)
+          getSymbol();
+        else
+          syntaxErrorSymbol(SYM_RBRACKET);
+
+      } else
+        syntaxErrorSymbol(SYM_INTEGER);
+
+      type = load_variable(variableOrProcedureName, arrayIndex);
+
     } else
       // variable access: identifier
-      type = load_variable(variableOrProcedureName);
+      type = load_variable(variableOrProcedureName, 0);
 
   // integer?
   } else if (symbol == SYM_INTEGER) {
@@ -3525,16 +3565,17 @@ void gr_statement(int *operandInfo) {
   int rtype;
   int *variableOrProcedureName;
   int *entry;
+  int arrayIndex;
 
   // assert: allocatedTemporaries == 0;
 
   while (lookForStatement()) {
     syntaxErrorUnexpected();
 
-  if (symbol == SYM_EOF)
-    exit(-1);
-  else
-    getSymbol();
+    if (symbol == SYM_EOF)
+      exit(-1);
+    else
+      getSymbol();
   }
 
   // ["*"]
@@ -3543,14 +3584,46 @@ void gr_statement(int *operandInfo) {
 
     // "*" identifier
     if (symbol == SYM_IDENTIFIER) {
-      ltype = load_variable(identifier);
+      ltype = load_variable(identifier, 0);
 
       if (ltype != INTSTAR_T)
         typeWarning(INTSTAR_T, ltype);
 
+      getSymbol();
+
+      // "*" identifier "="
+      if (symbol == SYM_ASSIGN) {
         getSymbol();
 
-        // "*" identifier "="
+        rtype = gr_expression(operandInfo);
+
+        if (rtype != INT_T)
+          typeWarning(INT_T, rtype);
+
+        emitIFormat(OP_SW, previousTemporary(), currentTemporary(), 0);
+
+        tfree(2);
+      } else
+        syntaxErrorSymbol(SYM_ASSIGN);
+
+      if (symbol == SYM_SEMICOLON)
+        getSymbol();
+      else
+        syntaxErrorSymbol(SYM_SEMICOLON);
+
+    // "*" "(" expression ")"
+    } else if (symbol == SYM_LPARENTHESIS) {
+      getSymbol();
+
+      ltype = gr_expression(operandInfo);
+
+      if (ltype != INTSTAR_T)
+        typeWarning(INTSTAR_T, ltype);
+
+      if (symbol == SYM_RPARENTHESIS) {
+        getSymbol();
+
+        // "*" "(" expression ")" "="
         if (symbol == SYM_ASSIGN) {
           getSymbol();
 
@@ -3569,105 +3642,114 @@ void gr_statement(int *operandInfo) {
           getSymbol();
         else
           syntaxErrorSymbol(SYM_SEMICOLON);
-
-        // "*" "(" expression ")"
-      } else if (symbol == SYM_LPARENTHESIS) {
-        getSymbol();
-
-        ltype = gr_expression(operandInfo);
-
-        if (ltype != INTSTAR_T)
-          typeWarning(INTSTAR_T, ltype);
-
-        if (symbol == SYM_RPARENTHESIS) {
-          getSymbol();
-
-          // "*" "(" expression ")" "="
-          if (symbol == SYM_ASSIGN) {
-            getSymbol();
-
-            rtype = gr_expression(operandInfo);
-
-            if (rtype != INT_T)
-              typeWarning(INT_T, rtype);
-
-            emitIFormat(OP_SW, previousTemporary(), currentTemporary(), 0);
-
-            tfree(2);
-          } else
-            syntaxErrorSymbol(SYM_ASSIGN);
-
-          if (symbol == SYM_SEMICOLON)
-            getSymbol();
-          else
-            syntaxErrorSymbol(SYM_SEMICOLON);
-        } else
-          syntaxErrorSymbol(SYM_RPARENTHESIS);
       } else
-        syntaxErrorSymbol(SYM_LPARENTHESIS);
-    }
-    // identifier "=" expression | call
-    else if (symbol == SYM_IDENTIFIER) {
-      variableOrProcedureName = identifier;
+        syntaxErrorSymbol(SYM_RPARENTHESIS);
+    } else
+      syntaxErrorSymbol(SYM_LPARENTHESIS);
+  }
+  // identifier "=" expression | call
+  else if (symbol == SYM_IDENTIFIER) {
+    // Stefan TODO: can be identifier[index] = expression | call
+    variableOrProcedureName = identifier;
 
+    getSymbol();
+
+    // call
+    if (symbol == SYM_LPARENTHESIS) {
       getSymbol();
 
-      // call
-      if (symbol == SYM_LPARENTHESIS) {
-        getSymbol();
+      gr_call(variableOrProcedureName, operandInfo);
 
-        gr_call(variableOrProcedureName, operandInfo);
-
-        // reset return register
-        emitIFormat(OP_ADDIU, REG_ZR, REG_V0, 0);
-
-        if (symbol == SYM_SEMICOLON)
-          getSymbol();
-        else
-          syntaxErrorSymbol(SYM_SEMICOLON);
-
-        // identifier = expression
-        } else if (symbol == SYM_ASSIGN) {
-          entry = getVariable(variableOrProcedureName);
-
-          ltype = getType(entry);
-
-          getSymbol();
-
-          rtype = gr_expression(operandInfo);
-
-          if (ltype != rtype)
-            typeWarning(ltype, rtype);
-
-          emitIFormat(OP_SW, getScope(entry), currentTemporary(), getAddress(entry));
-
-          tfree(1);
-
-          if (symbol == SYM_SEMICOLON)
-            getSymbol();
-          else
-            syntaxErrorSymbol(SYM_SEMICOLON);
-        } else
-          syntaxErrorUnexpected();
-    }
-    // while statement?
-    else if (symbol == SYM_WHILE) {
-      gr_while(operandInfo);
-    }
-    // if statement?
-    else if (symbol == SYM_IF) {
-      gr_if(operandInfo);
-    }
-    // return statement?
-    else if (symbol == SYM_RETURN) {
-      entry = getSymbolTableEntry(currentProcedureName, PROCEDURE);
-
-      gr_return(getType(entry), operandInfo);
+      // reset return register
+      emitIFormat(OP_ADDIU, REG_ZR, REG_V0, 0);
 
       if (symbol == SYM_SEMICOLON)
         getSymbol();
       else
         syntaxErrorSymbol(SYM_SEMICOLON);
+
+    // identifier[index] = expression
+    } else if (symbol == SYM_LBRACKET) {
+      getSymbol();
+
+      if (symbol == SYM_INTEGER) {
+        if (literal >= 0)
+          arrayIndex = literal;
+        // else
+          // Stefan TODO: Fire index error
+
+        getSymbol();
+
+        if (symbol == SYM_RBRACKET)
+          getSymbol();
+        else
+          syntaxErrorSymbol(SYM_RBRACKET);
+
+      } else
+        syntaxErrorSymbol(SYM_INTEGER);
+
+      entry = getVariable(variableOrProcedureName);
+
+      ltype = getType(entry);
+
+      getSymbol();
+
+      rtype = gr_expression(operandInfo);
+
+      if (ltype != rtype)
+        typeWarning(ltype, rtype);
+
+      emitIFormat(OP_SW, getScope(entry), currentTemporary(), getAddress(entry) - arrayIndex * WORDSIZE);
+
+      tfree(1);
+
+      if (symbol == SYM_SEMICOLON)
+        getSymbol();
+      else
+        syntaxErrorSymbol(SYM_SEMICOLON);
+
+    // identifier = expression
+    } else if (symbol == SYM_ASSIGN) {
+      entry = getVariable(variableOrProcedureName);
+
+      ltype = getType(entry);
+
+      getSymbol();
+
+      rtype = gr_expression(operandInfo);
+
+      if (ltype != rtype)
+        typeWarning(ltype, rtype);
+
+      emitIFormat(OP_SW, getScope(entry), currentTemporary(), getAddress(entry));
+
+      tfree(1);
+
+      if (symbol == SYM_SEMICOLON)
+        getSymbol();
+      else
+        syntaxErrorSymbol(SYM_SEMICOLON);
+    } else
+      syntaxErrorUnexpected();
+  }
+  // while statement?
+  else if (symbol == SYM_WHILE) {
+    gr_while(operandInfo);
+  }
+  // if statement?
+  else if (symbol == SYM_IF) {
+    gr_if(operandInfo);
+  }
+  // return statement?
+  else if (symbol == SYM_RETURN) {
+    entry = getSymbolTableEntry(currentProcedureName, PROCEDURE);
+
+    gr_return(getType(entry), operandInfo);
+
+    if (symbol == SYM_SEMICOLON)
+      getSymbol();
+    else
+      syntaxErrorSymbol(SYM_SEMICOLON);
   }
 }
 
@@ -3873,12 +3955,38 @@ void gr_procedure(int *procedure, int returnType, int *operandInfo) {
     localVariables = 0;
 
     while (symbol == SYM_INT) {
+      // Stefan TODO: Can be int arrays
+
       localVariables = localVariables + 1;
 
       gr_variable(-localVariables * WORDSIZE);
 
       if (symbol == SYM_SEMICOLON)
         getSymbol();
+      else if (symbol == SYM_LBRACKET) {
+        getSymbol();
+
+        if (symbol == SYM_INTEGER) {
+          // Stefan TODO: Simply use the localVariables variable here?
+          if (literal > 0)
+            localVariables = localVariables + (literal - 1);
+          //else
+            // Stefan TODO: Fire syntaxError
+        } else
+          syntaxErrorSymbol(SYM_INTEGER);
+
+        getSymbol();
+
+        if (symbol == SYM_RBRACKET) {
+          getSymbol();
+          if (symbol == SYM_SEMICOLON)
+            getSymbol();
+          else
+            syntaxErrorSymbol(SYM_SEMICOLON);
+        } else
+          syntaxErrorSymbol(SYM_RBRACKET);
+
+      }
       else
         syntaxErrorSymbol(SYM_SEMICOLON);
     }
@@ -3917,6 +4025,7 @@ void gr_cstar() {
   int type;
   int *variableOrProcedureName;
   int *operandInfo;
+  int arraySize;
 
   operandInfo = malloc(2 * SIZEOFINT);
 
@@ -3966,14 +4075,42 @@ void gr_cstar() {
 
             getSymbol();
 
-          // Stefan TODO: look for "[" -> array
-          // only reserve memory
-          // no array initialization capabilites desired
-          // int identifier[]; => is a regular pointer, look how pointers are doubly-linked
-          // int identifier[10]; => allocate 10 * WORDSIZE
-          // int identifier[] => missing SEMICOLON
-          // int identifier[-1] => invalid
-          // int identifier[0] => invalid
+          // type identifier[size] = array declaration
+          } else if (symbol == SYM_LBRACKET) {
+            // only reserve memory
+            // no array initialization capabilites desired
+            // int identifier[]; => is a regular pointer, look how pointers are doubly-linked
+            // int identifier[10]; => allocate 10 * WORDSIZE
+            // int identifier[] => missing SEMICOLON
+            // int identifier[-1] => invalid
+            // int identifier[0] => invalid
+
+            getSymbol();
+
+            if (symbol == SYM_INTEGER) {
+              // Stefan TODO: Simply use the localVariables variable here?
+              if (literal > 0)
+                arraySize = literal;
+              //else
+                // Stefan TODO: Fire syntaxError
+            } else
+              syntaxErrorSymbol(SYM_INTEGER);
+
+            getSymbol();
+
+            if (symbol == SYM_RBRACKET) {
+              getSymbol();
+
+              if (symbol == SYM_SEMICOLON) {
+                createSymbolTableEntry(GLOBAL_TABLE, variableOrProcedureName, lineNumber, VARIABLE, type, 0, -allocatedMemory);
+
+                allocatedMemory = allocatedMemory + (arraySize - 1) * WORDSIZE;
+
+                getSymbol();
+              } else
+                syntaxErrorSymbol(SYM_SEMICOLON);
+            } else
+              syntaxErrorSymbol(SYM_RBRACKET);
 
           // type identifier "=" global variable definition
           } else
