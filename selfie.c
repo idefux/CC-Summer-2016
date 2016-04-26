@@ -115,6 +115,7 @@ int* malloc(int size);
 void exit(int code);
 
 int and(int a, int b);
+int not(int a);
 
 int* my_malloc(int size);
 
@@ -226,6 +227,13 @@ int and(int a, int b) {
             return 0;
     } else
         return 0;
+}
+
+int not(int a) {
+  if (a)
+    return 0;
+  else
+    return 1;
 }
 
 int* my_malloc(int size) {
@@ -2871,8 +2879,10 @@ int gr_simpleExpression(int *operandInfo) {
   int lValue;
   int rIsConstant;
   int rValue;
-  int loadAndEmitPending;
-  int valuePending;
+  int operationPending;
+  int prevType;
+  int prevOperatorSymbol;
+  int doEmit;
 
   // assert: n = allocatedTemporaries
 
@@ -2903,6 +2913,8 @@ int gr_simpleExpression(int *operandInfo) {
   lIsConstant = isConstant(operandInfo);
   lValue = getOperandsValue(operandInfo);
 
+  operationPending = 0;
+
   // assert: allocatedTemporaries == n + 1
 
   if (sign) {
@@ -2932,7 +2944,43 @@ int gr_simpleExpression(int *operandInfo) {
 
     // assert: allocatedTemporaries == n + 2 or n + 1
 
-    if (and(lIsConstant, rIsConstant)) {
+    // previous sequence was non-constant, constant. now is non-constant
+    if (and(operationPending, not(rIsConstant))) {
+
+      unsetConstant(operandInfo);
+
+      // load previous value n-1
+      delayedLoading(lIsConstant, lValue, 0, 0);
+
+      // emit operation for n-2 OP n-1
+      if (prevOperatorSymbol == SYM_PLUS) {
+        if (prevType == INTSTAR_T) {
+          if (ltype == INT_T)
+            // pointer arithmetic: factor of 2^2 of integer operand
+            emitLeftShiftBy(2);
+          } else if (ltype == INTSTAR_T)
+            typeWarning(prevType, ltype);
+
+          emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_ADDU);
+      } else if (prevOperatorSymbol == SYM_MINUS) {
+        if (prevType != ltype)
+          typeWarning(prevType, ltype);
+
+        emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SUBU);
+      }
+      tfree(1);
+
+      ltype = prevType;
+
+      // now load current value n (=r)
+      delayedLoading(0, 0, rIsConstant, rValue);
+
+      operationPending = 0;
+      doEmit = 1;
+
+    // previous sequence was non-constant, constant. now is constant. can fold
+    // same as and(lIsConstant, rIsConstant) ?
+    } else if (and(lIsConstant, rIsConstant)) {
 
       if (operatorSymbol == SYM_PLUS) {
         if (ltype == INTSTAR_T) {
@@ -2960,21 +3008,37 @@ int gr_simpleExpression(int *operandInfo) {
 
       ltype = INT_T;
 
+      doEmit = 0;
+
     } else if (lIsConstant) {
       // l Is Constant, r Is Not => Load l, r and emit
       unsetConstant(operandInfo);
       delayedLoading(lIsConstant, lValue, rIsConstant, rValue);
+
       doEmit = 1;
 
     } else if (rIsConstant){
       // l Is Not a Constant, but r Is a Constant => Load l, set r as new l
-      // If there is another iteration the
+      prevType = ltype;
+      prevOperatorSymbol = operatorSymbol;
+      // no need for prevValue, is already loaded to register
+      lValue = rValue;
+      ltype = rtype;
+      operationPending = 1;
 
-      delayedEmit = 1;
+      // reset as constant value
+      setConstant(operandInfo);
+      setOperandsValue(operandInfo, lValue);
+
+      lIsConstant = isConstant(operandInfo);
+
+      doEmit = 0;
 
     } else {
       unsetConstant(operandInfo);
       delayedLoading(lIsConstant, lValue, rIsConstant, rValue);
+
+      doEmit = 1;
     }
 
     if (doEmit) {
@@ -2997,6 +3061,31 @@ int gr_simpleExpression(int *operandInfo) {
 
       tfree(1);
     }
+  }
+
+  if (operationPending) {
+    unsetConstant(operandInfo);
+    delayedLoading(0, 0, rIsConstant, rValue);
+
+    if (prevOperatorSymbol == SYM_PLUS) {
+      if (prevType == INTSTAR_T) {
+        if (ltype == INT_T)
+          // pointer arithmetic: factor of 2^2 of integer operand
+          emitLeftShiftBy(2);
+        } else if (ltype == INTSTAR_T)
+          typeWarning(prevType, ltype);
+
+        emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_ADDU);
+    } else if (prevOperatorSymbol == SYM_MINUS) {
+      if (prevType != ltype)
+        typeWarning(prevType, ltype);
+
+      emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SUBU);
+    }
+
+    tfree(1);
+
+    ltype = prevType;
   }
 
     // assert: allocatedTemporaries == n + 1 or n
