@@ -2888,9 +2888,11 @@ int gr_simpleExpression(int *operandInfo) {
   int prevType;
   int prevOperatorSymbol;
   int emitInstruction;
+  int switchOperands;
 
   // clean start, no operation pending
   operationPending = 0;
+  switchOperands = 0;
 
   // assert: n = allocatedTemporaries
 
@@ -2934,7 +2936,7 @@ int gr_simpleExpression(int *operandInfo) {
       lValue = -lValue;
       setOperandsValue(operandInfo, lValue);
     } else
-      emitRFormat(OP_SPECIAL, REG_ZR, currentTemporary(), currentTemporary(), FCT_SUBU);
+       emitRFormat(OP_SPECIAL, REG_ZR, currentTemporary(), currentTemporary(), FCT_SUBU);
   }
 
   // + or -?
@@ -3021,20 +3023,32 @@ int gr_simpleExpression(int *operandInfo) {
       emitInstruction = 0;
       // operationPending stays active
 
-    // l Is Constant, r Is Not => Load l, r and emit
+    // l Is Constant, r Is Not => Load l and emit
     } else if (lIsConstant) {
 
       unsetConstant(operandInfo);
       delayedLoading(lIsConstant, lValue, rIsConstant, rValue);
 
+      lIsConstant = isConstant(operandInfo);
+
       emitInstruction = 1;
+      // r is already loaded to register, l is loaded now -> wrong order
+      switchOperands = 1;
 
     // l Is Not a Constant, but r Is a Constant => Load l, set r as new l
     // set operation pending
     } else if (rIsConstant){
 
       prevType = ltype;
-      prevOperatorSymbol = operatorSymbol;
+
+      if (operatorSymbol == SYM_MINUS) {
+
+        rValue = -rValue;
+        prevOperatorSymbol = SYM_PLUS;
+
+      } else
+        prevOperatorSymbol = operatorSymbol;
+
       // no need for a prevValue, is already loaded to register
       lValue = rValue;
       ltype = rtype;
@@ -3071,8 +3085,12 @@ int gr_simpleExpression(int *operandInfo) {
       } else if (operatorSymbol == SYM_MINUS) {
         if (ltype != rtype)
           typeWarning(ltype, rtype);
+        if (switchOperands) {
 
-        emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SUBU);
+          emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_SUBU);
+          switchOperands = 0;
+        } else
+          emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SUBU);
       }
 
       tfree(1);
