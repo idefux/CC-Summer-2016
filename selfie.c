@@ -219,35 +219,6 @@ void initLibrary() {
   *io_buffer = 0;
 }
 
-int and(int a, int b) {
-    if (a) {
-        if (b)
-            return 1;
-        else
-            return 0;
-    } else
-        return 0;
-}
-
-int not(int a) {
-  if (a)
-    return 0;
-  else
-    return 1;
-}
-
-int* my_malloc(int size) {
-    int *memory;
-
-    memory = malloc(size);
-    print(itoa(my_malloc_counter, string_buffer, 10, 0, 0));
-    print((int*)": Allocated memory at: ");
-    print(itoa(memory, string_buffer, 16, 0, 0));
-    println();
-    my_malloc_counter = my_malloc_counter + 1;
-    return memory;
-}
-
 // *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~
 // -----------------------------------------------------------------
 // ---------------------    C O M P I L E R    ---------------------
@@ -518,6 +489,11 @@ void gr_variable(int offset);
 void gr_initialization(int *name, int offset, int type);
 void gr_procedure(int *procedure, int returnType, int *operandInfo);
 void gr_cstar();
+
+// ------------------------ GLOBAL CONSTANTS -----------------------
+
+int NONCONSTANT = 0;
+int CONSTANT = 1;
 
 // ------------------------ GLOBAL VARIABLES -----------------------
 
@@ -1563,6 +1539,35 @@ int roundUp(int n, int m) {
     return n - n % m;
 }
 
+int and(int a, int b) {
+    if (a) {
+        if (b)
+            return 1;
+        else
+            return 0;
+    } else
+        return 0;
+}
+
+int not(int a) {
+  if (a)
+    return 0;
+  else
+    return 1;
+}
+
+int* my_malloc(int size) {
+    int *memory;
+
+    memory = malloc(size);
+    print(itoa(my_malloc_counter, string_buffer, 10, 0, 0));
+    print((int*)": Allocated memory at: ");
+    print(itoa(memory, string_buffer, 16, 0, 0));
+    println();
+    my_malloc_counter = my_malloc_counter + 1;
+    return memory;
+}
+
 // *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~
 // -----------------------------------------------------------------
 // ---------------------    C O M P I L E R    ---------------------
@@ -2520,7 +2525,7 @@ void help_procedure_epilogue(int parameters) {
 }
 
 int isConstant(int *operandInfo) {
-  return (*operandInfo == 1);
+  return (*operandInfo == CONSTANT);
 }
 
 int getOperandsValue(int *operandInfo) {
@@ -2528,11 +2533,11 @@ int getOperandsValue(int *operandInfo) {
 }
 
 void setConstant(int *operandInfo) {
-  *operandInfo = 1;
+  *operandInfo = CONSTANT;
 }
 
 void unsetConstant(int *operandInfo) {
-  *operandInfo = 0;
+  *operandInfo = NONCONSTANT;
 }
 
 void setOperandsValue(int *operandInfo, int value) {
@@ -2882,7 +2887,10 @@ int gr_simpleExpression(int *operandInfo) {
   int operationPending;
   int prevType;
   int prevOperatorSymbol;
-  int doEmit;
+  int emitInstruction;
+
+  // clean start, no operation pending
+  operationPending = 0;
 
   // assert: n = allocatedTemporaries
 
@@ -2912,8 +2920,6 @@ int gr_simpleExpression(int *operandInfo) {
 
   lIsConstant = isConstant(operandInfo);
   lValue = getOperandsValue(operandInfo);
-
-  operationPending = 0;
 
   // assert: allocatedTemporaries == n + 1
 
@@ -2945,11 +2951,13 @@ int gr_simpleExpression(int *operandInfo) {
     // assert: allocatedTemporaries == n + 2 or n + 1
 
     // previous sequence was non-constant, constant. now is non-constant
+    // cannot fold, load constant value, emit pending operation
+    // and emit current operation
     if (and(operationPending, not(rIsConstant))) {
 
       unsetConstant(operandInfo);
 
-      // load previous value n-1
+      // load previous value n-1, this is stored in lValue
       delayedLoading(lIsConstant, lValue, 0, 0);
 
       // emit operation for n-2 OP n-1
@@ -2975,11 +2983,13 @@ int gr_simpleExpression(int *operandInfo) {
       // now load current value n (=r)
       delayedLoading(0, 0, rIsConstant, rValue);
 
+      // emit Instructions for current operation
+      emitInstruction = 1;
       operationPending = 0;
-      doEmit = 1;
 
     // previous sequence was non-constant, constant. now is constant. can fold
-    // same as and(lIsConstant, rIsConstant) ?
+    // this is the same as and(lIsConstant, rIsConstant)
+    // else if and(operationPending, rIsConstant) or
     } else if (and(lIsConstant, rIsConstant)) {
 
       if (operatorSymbol == SYM_PLUS) {
@@ -3008,40 +3018,46 @@ int gr_simpleExpression(int *operandInfo) {
 
       ltype = INT_T;
 
-      doEmit = 0;
+      emitInstruction = 0;
+      // operationPending stays active
 
+    // l Is Constant, r Is Not => Load l, r and emit
     } else if (lIsConstant) {
-      // l Is Constant, r Is Not => Load l, r and emit
+
       unsetConstant(operandInfo);
       delayedLoading(lIsConstant, lValue, rIsConstant, rValue);
 
-      doEmit = 1;
+      emitInstruction = 1;
 
+    // l Is Not a Constant, but r Is a Constant => Load l, set r as new l
+    // set operation pending
     } else if (rIsConstant){
-      // l Is Not a Constant, but r Is a Constant => Load l, set r as new l
+
       prevType = ltype;
       prevOperatorSymbol = operatorSymbol;
-      // no need for prevValue, is already loaded to register
+      // no need for a prevValue, is already loaded to register
       lValue = rValue;
       ltype = rtype;
       operationPending = 1;
 
-      // reset as constant value
+      // set as constant value
       setConstant(operandInfo);
       setOperandsValue(operandInfo, lValue);
 
       lIsConstant = isConstant(operandInfo);
 
-      doEmit = 0;
+      emitInstruction = 0;
 
+    // none of the value l and r is a constant, no folding possible -> emit
     } else {
+
       unsetConstant(operandInfo);
       delayedLoading(lIsConstant, lValue, rIsConstant, rValue);
 
-      doEmit = 1;
+      emitInstruction = 1;
     }
 
-    if (doEmit) {
+    if (emitInstruction) {
       if (operatorSymbol == SYM_PLUS) {
         if (ltype == INTSTAR_T) {
           if (rtype == INT_T)
