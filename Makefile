@@ -24,6 +24,32 @@ test: selfie
 	diff -q selfie1.m selfie3.m
 	diff -q selfie1.s selfie3.s
 
+test_constant_folding: selfie
+	echo "int main() { return 6 * 7 + 17;}" > test_constant_folding_1.tmp
+	!(./selfie -c test_constant_folding_1.tmp -d 1 | grep -E 't[0-7]=6\s|t[0-7]=7\s|t[0-7]=17\s')
+	./selfie -c test_constant_folding_1.tmp -d 1 | grep -E 'exit code 59'
+	rm -f test_constant_folding_1.tmp
+	echo "int main() { int x; x = -5; return x - 20 - 33 - 30 + 44;}" > test_constant_folding_2.tmp
+	!(./selfie -c test_constant_folding_2.tmp -d 1 | grep -E 't[0-7]=-20\s|t[0-7]=-33\s|t[0-7]=-30\s|t[0-7]=44\s')
+	./selfie -c test_constant_folding_2.tmp -d 1 | grep -E 'exit code -44'
+	rm -f test_constant_folding_2.tmp
+	echo "int main() { int x; x = -5; return 10 * 8 >> 2 + 2;}" > test_constant_folding_3.tmp
+	!(./selfie -c test_constant_folding_3.tmp -d 1 | grep -E 't[0-7]=10\s|t[0-7]=8\s|t[0-7]=80\s|t[0-7]=2\s|t[0-7]=4\s')
+	./selfie -c test_constant_folding_3.tmp -d 1 | grep -E 'exit code 5'
+	rm -f test_constant_folding_3.tmp
+	echo "int main() { int x; x = -5; return 10 * 8 - x + 2 + 2;}" > test_constant_folding_4.tmp
+	!(./selfie -c test_constant_folding_4.tmp -d 1 | grep -E 't[0-7]=10\s|t[0-7]=8\s|t[0-7]=2\s')
+	./selfie -c test_constant_folding_4.tmp -d 1 | grep -E 'exit code 89'
+	rm -f test_constant_folding_4.tmp
+	echo "int main() { int* x; *x = -5; return 10 * 8 - *x + 2 + 2;}" > test_constant_folding_5.tmp
+	!(./selfie -c test_constant_folding_5.tmp -d 1 | grep -E 't[0-7]=10\s|t[0-7]=8\s|t[0-7]=2\s')
+	./selfie -c test_constant_folding_5.tmp -d 1 | grep -E 'exit code 89'
+	rm -f test_constant_folding_5.tmp
+	echo "int main() { int* x; x = malloc(2 * 4); *(x + 1) = -5; return 10 * 8 - *(x + 1) + 2 + 2;}" > test_constant_folding_6.tmp
+	!(./selfie -c test_constant_folding_6.tmp -d 1 | grep -E 't[0-7]=10\s|t[0-7]=8\s|t[0-7]=2\s')
+	./selfie -c test_constant_folding_6.tmp -d 1 | grep -E 'exit code 89'
+	rm -f test_constant_folding_6.tmp
+
 # Clean up
 clean:
 	rm -rf *.m
