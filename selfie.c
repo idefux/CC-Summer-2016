@@ -3065,7 +3065,7 @@ int gr_simpleExpression(int *operandInfo) {
 
   if (operationPending) {
     unsetConstant(operandInfo);
-    delayedLoading(0, 0, rIsConstant, rValue);
+    delayedLoading(lIsConstant, lValue, 0, 0);
 
     if (prevOperatorSymbol == SYM_PLUS) {
       if (prevType == INTSTAR_T) {
