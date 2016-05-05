@@ -53,7 +53,15 @@ test_constant_folding: selfie
 
 # Test array functionality
 test_arrays: selfie
-	./selfie -c arrays.c
+	echo "int main() { int a[10]; int b[5]; a[0] = 23; a[1] = 24; b[3] = 7; return a[0] + a[1] + b[3];}" > test_arrays_1.tmp
+	./selfie -c test_arrays_1.tmp -d 1 | grep -E 'exit code 54'
+	rm -f test_arrays_1.tmp
+	echo "int main() { int a[10]; int i; i = 0; while (i < 10) { a[i] = i; i = i + 1; } return a[9];}" > test_arrays_2.tmp
+	./selfie -c test_arrays_2.tmp -d 1 | grep -E 'exit code 9'
+	rm -f test_arrays_2.tmp
+	./selfie -c test/array_stack.c -d 1 | grep -E 'exit code 63'
+	./selfie -c test/array_global_vars.c -d 1 | grep -E 'exit code 12'
+	./selfie -c test/array_access_expression.c -d 1 | grep -E 'exit code 209'
 
 # Clean up
 clean:
