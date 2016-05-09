@@ -62,6 +62,7 @@ test_arrays: selfie
 	./selfie -c test/array_stack.c -d 1 | grep -E 'exit code 63'
 	./selfie -c test/array_global_vars.c -d 1 | grep -E 'exit code 12'
 	./selfie -c test/array_access_expression.c -d 1 | grep -E 'exit code 209'
+	./selfie -c test/array_heap.c -d 1 | grep -E 'exit code 73'
 
 # Clean up
 clean:

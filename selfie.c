@@ -2501,6 +2501,59 @@ void load_string(int* string) {
   emitIFormat(OP_ADDIU, REG_GP, currentTemporary(), -allocatedMemory);
 }
 
+void load_from_array(int* entry) {
+  talloc();
+  if (getType(entry) == INT_T)
+    emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), SIZEOFINT);
+  else if (getType(entry) == INTSTAR_T)
+    emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), SIZEOFINTSTAR);
+
+  // assert: allocatedTemporaries == n + 2
+
+  emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), 0, FCT_MULTU);
+  emitRFormat(OP_SPECIAL, 0, 0, previousTemporary(), FCT_MFLO);
+  tfree(1);
+
+  // assert: allocatedTemporaries == n + 1
+
+  // load address of first array element.
+
+  if (getClass(entry) == ARRAY) {
+
+    talloc();
+    //address here is just offset from scope pointer ($gp or $fp)
+    emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), getAddress(entry));
+
+    // decrease address of first element by array index * size of type => address of desired element
+    // address here still means offset from scope pointer
+    emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_SUBU);
+    tfree(1);
+
+    // assert: allocatedTemporaries == n + 1
+
+    // get scope pointer and add address offset to it e.g. $fp + address offset
+    // address offset is negative, so this will in effect lead to $fp - address offset*
+    // whis will only work for memory allocated on stack or in global vars and not for the heap! Stefan TODO
+    emitRFormat(OP_SPECIAL, getScope(entry), currentTemporary(), currentTemporary(), FCT_ADDU);
+
+  } else if (getClass(entry) == VARIABLE) {
+
+    // currentTemp holds index * 4
+    // Now get address of first array element by loading from getAddress(entry)
+    talloc();
+    emitIFormat(OP_LW, getScope(entry), currentTemporary(), getAddress(entry));
+
+    // Now add index offset to address
+    emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_ADDU);
+    tfree(1);
+
+    //emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), getAddress(entry));
+
+  }
+  //emitIFormat(OP_SW, previousTemporary(), currentTemporary(),0);
+  //emitIFormat(OP_LW, currentTemporary(), currentTemporary(), 0);
+}
+
 int help_call_codegen(int* entry, int* procedure) {
   int type;
 
@@ -2691,6 +2744,7 @@ int gr_factor(int *operandInfo) {
   int *variableOrProcedureName;
 
   int arrayIndex;
+  int itype;
 
   unsetConstant(operandInfo);
 
@@ -2796,44 +2850,16 @@ int gr_factor(int *operandInfo) {
 
       // assert: allocatedTemporaries == n
 
-      type = gr_expression(operandInfo);
+      itype = gr_expression(operandInfo);
+
+      if (itype != INT_T)
+        typeWarning(INT_T, itype);
 
       // assert: allocatedTemporaries == n + 1
 
       entry = getArray(variableOrProcedureName);
 
-      talloc();
-      if (type == INT_T)
-        emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), SIZEOFINT);
-      else if (type == INTSTAR_T)
-        emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), SIZEOFINTSTAR);
-
-      // assert: allocatedTemporaries == n + 2
-
-      emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), 0, FCT_MULTU);
-      emitRFormat(OP_SPECIAL, 0, 0, previousTemporary(), FCT_MFLO);
-      tfree(1);
-
-      // assert: allocatedTemporaries == n + 1
-
-      // load address of first array element. address here is just offset from scope pointer ($gp or $fp)
-      talloc();
-      emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), getAddress(entry));
-
-      // decrease address of first element by array index * size of type => address of desired element
-      // address here still means offset from scope pointer
-      if (getAddress(entry) < 0)
-        emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_SUBU);
-      else
-        emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_ADDU);
-      tfree(1);
-
-      // assert: allocatedTemporaries == n + 1
-
-      // get scope pointer and add address offset to it e.g. $fp + address offset
-      // address offset is negative, so this will in effect lead to $fp - address offset*
-      // whis will only work for memory allocated on stack or in global vars and not for the heap! Stefan TODO
-      emitRFormat(OP_SPECIAL, getScope(entry), currentTemporary(), currentTemporary(), FCT_ADDU);
+      load_from_array(entry);
 
       //emitIFormat(OP_SW, previousTemporary(), currentTemporary(),0);
       emitIFormat(OP_LW, currentTemporary(), currentTemporary(), 0);
@@ -3755,35 +3781,7 @@ void gr_statement(int *operandInfo) {
 
       ltype = getType(entry);
 
-      // load size of type to register and multiply with index
-      talloc();
-      if (ltype == INT_T)
-        emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), SIZEOFINT);
-      else if (ltype == INTSTAR_T)
-        emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), SIZEOFINTSTAR);
-      // else
-        // Stefan TODO: Fire error if unknown type
-
-      emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), 0, FCT_MULTU);
-      emitRFormat(OP_SPECIAL, 0, 0, previousTemporary(), FCT_MFLO);
-      tfree(1);
-
-      // load address of first array element. address here is just offset from scope pointer ($gp or $fp)
-      talloc();
-      emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), getAddress(entry));
-
-      // decrease address of first element by array index * size of type => address of desired element
-      // address here still means offset from scope pointer
-      if (getAddress(entry) < 0)
-        emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_SUBU);
-      else
-        emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_ADDU);
-      tfree(1);
-
-      // get scope pointer and add address offset to it e.g. $fp + address offset
-      // address offset is negative, so this will in effect lead to $fp - address offset*
-      // whis will only work for memory allocated on stack or in global vars and not for the heap! Stefan TODO
-      emitRFormat(OP_SPECIAL, getScope(entry), currentTemporary(), currentTemporary(), FCT_ADDU);
+      load_from_array(entry);
 
       getSymbol();
 
