@@ -470,7 +470,7 @@ void typeWarning(int expected, int found);
 
 int* getVariable(int* variable);
 int* getArray(int* array);
-int  load_variable(int* variable, int arrayIndex);
+int  load_variable(int* variable);
 void load_integer(int value);
 void load_string(int* string);
 
@@ -2433,16 +2433,27 @@ int* getArray(int* array) {
   return entry;
 }
 
-int load_variable(int* variable, int arrayIndex) {
+int load_variable(int* variable) {
   int* entry;
 
-  entry = getVariable(variable);
+  entry = getArray(variable);
 
   talloc();
 
-  emitIFormat(OP_LW, getScope(entry), currentTemporary(), getAddress(entry) - arrayIndex * WORDSIZE);
+  if (getClass(entry) == ARRAY) {
+    emitRFormat(OP_SPECIAL, REG_ZR, getScope(entry), currentTemporary(), FCT_ADDU);
 
-  return getType(entry);
+    talloc();
+    emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), getAddress(entry));
+
+    emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_ADDU);
+    tfree(1);
+
+    return INTSTAR_T;
+  } else {
+    emitIFormat(OP_LW, getScope(entry), currentTemporary(), getAddress(entry));
+    return getType(entry);
+  }
 }
 
 void load_integer(int value) {
@@ -2526,7 +2537,9 @@ void load_from_array(int* entry) {
 
     // decrease address of first element by array index * size of type => address of desired element
     // address here still means offset from scope pointer
-    emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_SUBU);
+    // new approach: bottom up layout of array memory
+    // emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_SUBU);
+    emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_ADDU);
     tfree(1);
 
     // assert: allocatedTemporaries == n + 1
@@ -2534,6 +2547,7 @@ void load_from_array(int* entry) {
     // get scope pointer and add address offset to it e.g. $fp + address offset
     // address offset is negative, so this will in effect lead to $fp - address offset*
     // whis will only work for memory allocated on stack or in global vars and not for the heap! Stefan TODO
+    // new approach: bottom up layout of array memory
     emitRFormat(OP_SPECIAL, getScope(entry), currentTemporary(), currentTemporary(), FCT_ADDU);
 
   } else if (getClass(entry) == VARIABLE) {
@@ -2799,7 +2813,7 @@ int gr_factor(int *operandInfo) {
 
     // ["*"] identifier
     if (symbol == SYM_IDENTIFIER) {
-      type = load_variable(identifier, 0);
+      type = load_variable(identifier);
 
       getSymbol();
 
@@ -2875,7 +2889,7 @@ int gr_factor(int *operandInfo) {
 
     } else
       // variable access: identifier
-      type = load_variable(variableOrProcedureName, 0);
+      type = load_variable(variableOrProcedureName);
 
   // integer?
   } else if (symbol == SYM_INTEGER) {
@@ -3243,8 +3257,8 @@ int gr_simpleExpression(int *operandInfo) {
         if (ltype == INT_T)
           // pointer arithmetic: factor of 2^2 of integer operand
           emitLeftShiftBy(2);
-        } else if (ltype == INTSTAR_T)
-          typeWarning(prevType, ltype);
+      } else if (ltype == INTSTAR_T)
+        typeWarning(prevType, ltype);
 
         emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_ADDU);
     } else if (prevOperatorSymbol == SYM_MINUS) {
@@ -3682,7 +3696,7 @@ void gr_statement(int *operandInfo) {
 
     // "*" identifier
     if (symbol == SYM_IDENTIFIER) {
-      ltype = load_variable(identifier, 0);
+      ltype = load_variable(identifier);
 
       if (ltype != INTSTAR_T)
         typeWarning(INTSTAR_T, ltype);
@@ -4061,13 +4075,19 @@ void gr_procedure(int *procedure, int returnType, int *operandInfo) {
       else if (symbol == SYM_LBRACKET) {
         getSymbol();
 
-        // The entry is twice in the symobl table. First as variable and second as array
-        createSymbolTableEntry(LOCAL_TABLE, identifier, lineNumber, ARRAY, type, 0, -localVariables * WORDSIZE, literal);
         if (symbol == SYM_INTEGER) {
           if (literal > 0)
             localVariables = localVariables + (literal - 1);
           //else
             // Stefan TODO: Fire syntaxError
+
+          // The entry is twice in the symobl table. First as variable and second as array
+          // createSymbolTableEntry(LOCAL_TABLE, identifier, lineNumber, ARRAY, type, 0, -localVariables * WORDSIZE, literal);
+          entry = getSymbolTableEntry(identifier, VARIABLE);
+          setClass(entry, ARRAY);
+          setAddress(entry, -localVariables * WORDSIZE);
+          setSize(entry, literal);
+
         } else
           syntaxErrorSymbol(SYM_INTEGER);
 
@@ -4196,9 +4216,9 @@ void gr_cstar() {
               getSymbol();
 
               if (symbol == SYM_SEMICOLON) {
-                createSymbolTableEntry(GLOBAL_TABLE, variableOrProcedureName, lineNumber, ARRAY, type, 0, -allocatedMemory, arraySize);
-
                 allocatedMemory = allocatedMemory + (arraySize - 1) * WORDSIZE;
+
+                createSymbolTableEntry(GLOBAL_TABLE, variableOrProcedureName, lineNumber, ARRAY, type, 0, -allocatedMemory, arraySize);
 
                 getSymbol();
               } else
