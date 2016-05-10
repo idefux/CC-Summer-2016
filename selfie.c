@@ -4251,7 +4251,7 @@ void gr_cstar() {
               } else if (symbol == SYM_SEMICOLON) {
                 allocatedMemory = allocatedMemory + (arraySize1 - 1) * WORDSIZE;
 
-                createSymbolTableEntry(GLOBAL_TABLE, variableOrProcedureName, lineNumber, ARRAY, type, 0, -allocatedMemory, arraySize1, 0);
+                createSymbolTableEntry(GLOBAL_TABLE, variableOrProcedureName, lineNumber, ARRAY, type, 0, -allocatedMemory, arraySize1, 1);
 
                 getSymbol();
 
