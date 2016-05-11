@@ -3984,6 +3984,8 @@ void gr_procedure(int *procedure, int returnType, int *operandInfo) {
   int functionStart;
   int *entry;
   int type;
+  int arraySize1;
+  int arraySize2;
 
   currentProcedureName = procedure;
 
@@ -4081,16 +4083,17 @@ void gr_procedure(int *procedure, int returnType, int *operandInfo) {
 
         if (symbol == SYM_INTEGER) {
           if (literal > 0)
-            localVariables = localVariables + (literal - 1);
+            arraySize1 = literal;
           //else
             // Stefan TODO: Fire syntaxError
 
+          localVariables = localVariables + (arraySize1 - 1);
           // The entry is twice in the symobl table. First as variable and second as array
           // createSymbolTableEntry(LOCAL_TABLE, identifier, lineNumber, ARRAY, type, 0, -localVariables * WORDSIZE, literal);
           entry = getSymbolTableEntry(identifier, VARIABLE);
           setClass(entry, ARRAY);
           setAddress(entry, -localVariables * WORDSIZE);
-          setSize1(entry, literal);
+          setSize1(entry, arraySize1);
 
         } else
           syntaxErrorSymbol(SYM_INTEGER);
@@ -4099,7 +4102,37 @@ void gr_procedure(int *procedure, int returnType, int *operandInfo) {
 
         if (symbol == SYM_RBRACKET) {
           getSymbol();
-          if (symbol == SYM_SEMICOLON)
+
+          if (symbol == SYM_LBRACKET) {
+            getSymbol();
+
+            if (symbol == SYM_INTEGER) {
+              if (literal > 0)
+                arraySize2 = literal;
+              //else
+                // Stefan TODO: Fire syntaxError
+              localVariables = localVariables + (arraySize1 - 1) * arraySize2;
+              setAddress(entry, -localVariables * WORDSIZE);
+              setSize2(entry, arraySize2);
+            } else
+              syntaxErrorSymbol(SYM_INTEGER);
+
+            getSymbol();
+
+            if (symbol == SYM_RBRACKET) {
+              getSymbol();
+
+              if (symbol == SYM_SEMICOLON) {
+                getSymbol();
+
+              } else
+                syntaxErrorSymbol(SYM_SEMICOLON);
+
+            } else
+              syntaxErrorSymbol(SYM_RBRACKET);
+
+
+          } else if (symbol == SYM_SEMICOLON)
             getSymbol();
           else
             syntaxErrorSymbol(SYM_SEMICOLON);
