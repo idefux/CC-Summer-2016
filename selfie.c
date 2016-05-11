@@ -114,6 +114,9 @@ int roundUp(int n, int m);
 int* malloc(int size);
 void exit(int code);
 
+int and(int a, int b);
+int not(int a);
+
 // ------------------------ GLOBAL CONSTANTS -----------------------
 
 int CHAR_EOF          = -1; // end of file
@@ -140,6 +143,8 @@ int CHAR_EXCLAMATION  = '!';
 int CHAR_PERCENTAGE   = '%';
 int CHAR_SINGLEQUOTE  = 39; // ASCII code 39 = '
 int CHAR_DOUBLEQUOTE  = '"';
+int CHAR_LBRACKET     = '[';
+int CHAR_RBRACKET     = ']';
 
 int SIZEOFINT     = 4; // must be the same as WORDSIZE
 int SIZEOFINTSTAR = 4; // must be the same as WORDSIZE
@@ -244,7 +249,11 @@ int identifierOrKeyword();
 
 int getSymbol();
 
+void printSymbols();
+
 // ------------------------ GLOBAL CONSTANTS -----------------------
+
+int NUMBEROFSYMBOLS  = 32;
 
 int SYM_EOF          = -1; // end of file
 int SYM_IDENTIFIER   = 0;  // identifier
@@ -275,8 +284,12 @@ int SYM_NOTEQ        = 24; // !=
 int SYM_MOD          = 25; // %
 int SYM_CHARACTER    = 26; // character
 int SYM_STRING       = 27; // string
+int SYM_SHIFTLEFT    = 28; // <<
+int SYM_SHIFTRIGHT   = 29; // >>
+int SYM_LBRACKET     = 30; // [
+int SYM_RBRACKET     = 31; // ]
 
-int* SYMBOLS; // array of strings representing symbols
+int SYMBOLS[32][2]; // array of strings representing symbols
 
 int maxIdentifierLength = 64; // maximum number of characters in an identifier
 int maxIntegerLength    = 10; // maximum number of characters in an integer
@@ -306,39 +319,49 @@ int  sourceFD   = 0;        // file descriptor of open source file
 // ------------------------- INITIALIZATION ------------------------
 
 void initScanner () {
-  SYMBOLS = malloc(28 * SIZEOFINTSTAR);
+  //SYMBOLS = malloc(32 * SIZEOFINTSTAR);
+  int i;
+  i = 0;
+  while (i < NUMBEROFSYMBOLS) {
+    SYMBOLS[i][1] = 0;
+    i = i + 1;
+  }
 
-  *(SYMBOLS + SYM_IDENTIFIER)   = (int) "identifier";
-  *(SYMBOLS + SYM_INTEGER)      = (int) "integer";
-  *(SYMBOLS + SYM_VOID)         = (int) "void";
-  *(SYMBOLS + SYM_INT)          = (int) "int";
-  *(SYMBOLS + SYM_SEMICOLON)    = (int) ";";
-  *(SYMBOLS + SYM_IF)           = (int) "if";
-  *(SYMBOLS + SYM_ELSE)         = (int) "else";
-  *(SYMBOLS + SYM_PLUS)         = (int) "+";
-  *(SYMBOLS + SYM_MINUS)        = (int) "-";
-  *(SYMBOLS + SYM_ASTERISK)     = (int) "*";
-  *(SYMBOLS + SYM_DIV)          = (int) "/";
-  *(SYMBOLS + SYM_EQUALITY)     = (int) "==";
-  *(SYMBOLS + SYM_ASSIGN)       = (int) "=";
-  *(SYMBOLS + SYM_LPARENTHESIS) = (int) "(";
-  *(SYMBOLS + SYM_RPARENTHESIS) = (int) ")";
-  *(SYMBOLS + SYM_LBRACE)       = (int) "{";
-  *(SYMBOLS + SYM_RBRACE)       = (int) "}";
-  *(SYMBOLS + SYM_WHILE)        = (int) "while";
-  *(SYMBOLS + SYM_RETURN)       = (int) "return";
-  *(SYMBOLS + SYM_COMMA)        = (int) ",";
-  *(SYMBOLS + SYM_LT)           = (int) "<";
-  *(SYMBOLS + SYM_LEQ)          = (int) "<=";
-  *(SYMBOLS + SYM_GT)           = (int) ">";
-  *(SYMBOLS + SYM_GEQ)          = (int) ">=";
-  *(SYMBOLS + SYM_NOTEQ)        = (int) "!=";
-  *(SYMBOLS + SYM_MOD)          = (int) "%";
-  *(SYMBOLS + SYM_CHARACTER)    = (int) "character";
-  *(SYMBOLS + SYM_STRING)       = (int) "string";
+  SYMBOLS[SYM_IDENTIFIER][0]   = (int) "identifier";
+  SYMBOLS[SYM_INTEGER][0]      = (int) "integer";
+  SYMBOLS[SYM_VOID][0]         = (int) "void";
+  SYMBOLS[SYM_INT][0]          = (int) "int";
+  SYMBOLS[SYM_SEMICOLON][0]    = (int) ";";
+  SYMBOLS[SYM_IF][0]           = (int) "if";
+  SYMBOLS[SYM_ELSE][0]         = (int) "else";
+  SYMBOLS[SYM_PLUS][0]         = (int) "+";
+  SYMBOLS[SYM_MINUS][0]        = (int) "-";
+  SYMBOLS[SYM_ASTERISK][0]     = (int) "*";
+  SYMBOLS[SYM_DIV][0]          = (int) "/";
+  SYMBOLS[SYM_EQUALITY][0]     = (int) "==";
+  SYMBOLS[SYM_ASSIGN][0]       = (int) "=";
+  SYMBOLS[SYM_LPARENTHESIS][0] = (int) "(";
+  SYMBOLS[SYM_RPARENTHESIS][0] = (int) ")";
+  SYMBOLS[SYM_LBRACE][0]       = (int) "{";
+  SYMBOLS[SYM_RBRACE][0]       = (int) "}";
+  SYMBOLS[SYM_WHILE][0]        = (int) "while";
+  SYMBOLS[SYM_RETURN][0]       = (int) "return";
+  SYMBOLS[SYM_COMMA][0]        = (int) ",";
+  SYMBOLS[SYM_LT][0]           = (int) "<";
+  SYMBOLS[SYM_LEQ][0]          = (int) "<=";
+  SYMBOLS[SYM_GT][0]           = (int) ">";
+  SYMBOLS[SYM_GEQ][0]          = (int) ">=";
+  SYMBOLS[SYM_NOTEQ][0]        = (int) "!=";
+  SYMBOLS[SYM_MOD][0]          = (int) "%";
+  SYMBOLS[SYM_CHARACTER][0]    = (int) "character";
+  SYMBOLS[SYM_STRING][0]       = (int) "string";
+  SYMBOLS[SYM_SHIFTLEFT][0]    = (int) "<<";
+  SYMBOLS[SYM_SHIFTRIGHT][0]   = (int) ">>";
+  SYMBOLS[SYM_LBRACKET][0]     = (int) "[";
+  SYMBOLS[SYM_RBRACKET][0]     = (int) "]";
 
   character = CHAR_EOF;
-  symbol  = SYM_EOF;
+  symbol    = SYM_EOF;
 }
 
 void resetScanner() {
@@ -354,7 +377,7 @@ void resetScanner() {
 
 void resetSymbolTables();
 
-void createSymbolTableEntry(int which, int* string, int line, int class, int type, int value, int address);
+void createSymbolTableEntry(int which, int* string, int line, int class, int type, int value, int address, int size1, int size2);
 int* searchSymbolTable(int* entry, int* string, int class);
 int* getSymbolTableEntry(int* string, int class);
 
@@ -366,11 +389,13 @@ int reportUndefinedProcedures();
 // |  0 | next    | pointer to next entry
 // |  1 | string  | identifier string, string literal
 // |  2 | line#   | source line number
-// |  3 | class   | VARIABLE, PROCEDURE, STRING
+// |  3 | class   | VARIABLE, PROCEDURE, STRING, ARRAY
 // |  4 | type    | INT_T, INTSTAR_T, VOID_T
 // |  5 | value   | VARIABLE: initial value
 // |  6 | address | VARIABLE: offset, PROCEDURE: address, STRING: offset
 // |  7 | scope   | REG_GP, REG_FP
+// |  8 | size1   | size of array dimension 1
+// |  9 | size2   | size of array dimension 2
 // +----+---------+
 
 int* getNextEntry(int* entry)  { return (int*) *entry; }
@@ -381,6 +406,8 @@ int  getType(int* entry)       { return        *(entry + 4); }
 int  getValue(int* entry)      { return        *(entry + 5); }
 int  getAddress(int* entry)    { return        *(entry + 6); }
 int  getScope(int* entry)      { return        *(entry + 7); }
+int  getSize1(int* entry)      { return        *(entry + 8); }
+int  getSize2(int* entry)      { return        *(entry + 9); }
 
 void setNextEntry(int* entry, int* next)    { *entry       = (int) next; }
 void setString(int* entry, int* identifier) { *(entry + 1) = (int) identifier; }
@@ -390,6 +417,8 @@ void setType(int* entry, int type)          { *(entry + 4) = type; }
 void setValue(int* entry, int value)        { *(entry + 5) = value; }
 void setAddress(int* entry, int address)    { *(entry + 6) = address; }
 void setScope(int* entry, int scope)        { *(entry + 7) = scope; }
+void setSize1(int* entry, int size)         { *(entry + 8) = size; }
+void setSize2(int* entry, int size)         { *(entry + 9) = size; }
 
 // ------------------------ GLOBAL CONSTANTS -----------------------
 
@@ -397,6 +426,7 @@ void setScope(int* entry, int scope)        { *(entry + 7) = scope; }
 int VARIABLE  = 1;
 int PROCEDURE = 2;
 int STRING    = 3;
+int ARRAY     = 4;
 
 // types
 int INT_T     = 1;
@@ -433,6 +463,7 @@ int isLiteral();
 int isStarOrDivOrModulo();
 int isPlusOrMinus();
 int isComparison();
+int isShiftLeftOrRight();
 
 int lookForFactor();
 int lookForStatement();
@@ -447,6 +478,7 @@ int* putType(int type);
 void typeWarning(int expected, int found);
 
 int* getVariable(int* variable);
+int* getArray(int* array);
 int  load_variable(int* variable);
 void load_integer(int value);
 void load_string(int* string);
@@ -455,20 +487,33 @@ int  help_call_codegen(int* entry, int* procedure);
 void help_procedure_prologue(int localVariables);
 void help_procedure_epilogue(int parameters);
 
-int  gr_call(int* procedure);
-int  gr_factor();
-int  gr_term();
-int  gr_simpleExpression();
-int  gr_expression();
-void gr_while();
-void gr_if();
-void gr_return(int returnType);
-void gr_statement();
+int  isConstant(int *operandInfo);
+int  getOperandsValue(int *operandInfo);
+void setConstant(int *operandInfo);
+void unsetConstant(int *operandInfo);
+void setOperandsValue(int *operandInfo, int value);
+void delayedLoading(int lIsConstant, int lValue, int rIsConstant, int rValue);
+
+int  gr_call(int *procedure, int *operandInfo);
+int  gr_factor(int *operandInfo);
+int  gr_term(int *operandInfo);
+int  gr_simpleExpression(int *operandInfo);
+int  gr_extExpression(int *operandInfo);
+int  gr_expression(int *operandInfo);
+void gr_while(int *operandInfo);
+void gr_if(int *operandInfo);
+void gr_return(int returnType, int *operandInfo);
+void gr_statement(int *operandInfo);
 int  gr_type();
-void gr_variable(int offset);
-void gr_initialization(int* name, int offset, int type);
-void gr_procedure(int* procedure, int returnType);
+int gr_variable(int offset);
+void gr_initialization(int *name, int offset, int type);
+void gr_procedure(int *procedure, int returnType, int *operandInfo);
 void gr_cstar();
+
+// ------------------------ GLOBAL CONSTANTS -----------------------
+
+int NONCONSTANT = 0;
+int CONSTANT = 1;
 
 // ------------------------ GLOBAL VARIABLES -----------------------
 
@@ -590,7 +635,7 @@ void initRegister() {
 // ---------------------------- ENCODER ----------------------------
 // -----------------------------------------------------------------
 
-int encodeRFormat(int opcode, int rs, int rt, int rd, int function);
+int encodeRFormat(int opcode, int rs, int rt, int rd, int shamt, int function);
 int encodeIFormat(int opcode, int rs, int rt, int immediate);
 int encodeJFormat(int opcode, int instr_index);
 
@@ -598,6 +643,7 @@ int getOpcode(int instruction);
 int getRS(int instruction);
 int getRT(int instruction);
 int getRD(int instruction);
+int getSHAMT(int instruction);
 int getFunction(int instruction);
 int getImmediate(int instruction);
 int getInstrIndex(int instruction);
@@ -630,7 +676,11 @@ int OP_SW      = 43;
 
 int* OPCODES; // array of strings representing MIPS opcodes
 
-int FCT_NOP     = 0;
+int FCT_SLL     = 0;
+//int FCT_NOP     = 0;
+int FCT_SRL     = 2;
+int FCT_SLLV    = 4;
+int FCT_SRLV    = 6;
 int FCT_JR      = 8;
 int FCT_SYSCALL = 12;
 int FCT_MFHI    = 16;
@@ -649,6 +699,7 @@ int opcode      = 0;
 int rs          = 0;
 int rt          = 0;
 int rd          = 0;
+int shamt       = 0;
 int immediate   = 0;
 int function    = 0;
 int instr_index = 0;
@@ -669,7 +720,11 @@ void initDecoder() {
 
   FUNCTIONS = malloc(43 * SIZEOFINTSTAR);
 
-  *(FUNCTIONS + FCT_NOP)     = (int) "nop";
+  //*(FUNCTIONS + FCT_NOP)     = (int) "nop";
+  *(FUNCTIONS + FCT_SLL)     = (int) "sll";
+  *(FUNCTIONS + FCT_SRL)     = (int) "srl";
+  *(FUNCTIONS + FCT_SLLV)    = (int) "sllv";
+  *(FUNCTIONS + FCT_SRLV)    = (int) "srlv";
   *(FUNCTIONS + FCT_JR)      = (int) "jr";
   *(FUNCTIONS + FCT_SYSCALL) = (int) "syscall";
   *(FUNCTIONS + FCT_MFHI)    = (int) "mfhi";
@@ -711,7 +766,8 @@ void selfie_load();
 
 // ------------------------ GLOBAL CONSTANTS -----------------------
 
-int maxBinaryLength = 131072; // 128KB
+//int maxBinaryLength = 131072; // 128KB
+int maxBinaryLength = 262144; // 256KB
 
 // ------------------------ GLOBAL VARIABLES -----------------------
 
@@ -894,6 +950,10 @@ void fct_subu();
 void op_lw();
 void fct_slt();
 void op_sw();
+void fct_sll();
+void fct_srl();
+void fct_sllv();
+void fct_srlv();
 
 // -----------------------------------------------------------------
 // -------------------------- INTERPRETER --------------------------
@@ -1169,10 +1229,14 @@ int twoToThePowerOf(int p) {
 int leftShift(int n, int b) {
   // assert: b >= 0;
 
+  //if (b < 31)
+  //    return n * twoToThePowerOf(b);
+  //else if (b == 31)
+  //    return n * twoToThePowerOf(30) * 2;
+  //else
+  //    return 0;
   if (b < 31)
-    return n * twoToThePowerOf(b);
-  else if (b == 31)
-    return n * twoToThePowerOf(30) * 2;
+    return n << b;
   else
     return 0;
 }
@@ -1182,14 +1246,16 @@ int rightShift(int n, int b) {
 
   if (n >= 0) {
     if (b < 31)
-      return n / twoToThePowerOf(b);
+      //return n / twoToThePowerOf(b);
+      return n >> b;
     else
       return 0;
   } else if (b < 31)
     // works even if n == INT_MIN:
     // shift right n with msb reset and then restore msb
-    return ((n + 1) + INT_MAX) / twoToThePowerOf(b) +
-      (INT_MAX / twoToThePowerOf(b) + 1);
+    //return ((n + 1) + INT_MAX) / twoToThePowerOf(b) +
+    //    (INT_MAX / twoToThePowerOf(b) + 1);
+    return (((n + 1) + INT_MAX) >> b) + (INT_MAX >> b) + 1;
   else if (b == 31)
     return 1;
   else
@@ -1493,6 +1559,23 @@ int roundUp(int n, int m) {
     return n - n % m;
 }
 
+int and(int a, int b) {
+    if (a) {
+        if (b)
+            return 1;
+        else
+            return 0;
+    } else
+        return 0;
+}
+
+int not(int a) {
+  if (a)
+    return 0;
+  else
+    return 1;
+}
+
 // *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~
 // -----------------------------------------------------------------
 // ---------------------    C O M P I L E R    ---------------------
@@ -1509,7 +1592,7 @@ void printSymbol(int symbol) {
   if (symbol == SYM_EOF)
     print((int*) "end of file");
   else
-    print((int*) *(SYMBOLS + symbol));
+    print((int*) SYMBOLS[symbol][0]);
 
   putCharacter(CHAR_DOUBLEQUOTE);
 }
@@ -1669,7 +1752,7 @@ int isNotDoubleQuoteOrEOF() {
 }
 
 int identifierStringMatch(int keyword) {
-  return stringCompare(identifier, (int*) *(SYMBOLS + keyword));
+  return stringCompare(identifier, (int*) SYMBOLS[keyword][0]);
 }
 
 int identifierOrKeyword() {
@@ -1692,247 +1775,286 @@ int identifierOrKeyword() {
 int getSymbol() {
   int i;
 
-  symbol = SYM_EOF;
+    symbol = SYM_EOF;
 
-  if (findNextCharacter() == CHAR_EOF)
-    return SYM_EOF;
-  else if (symbol == SYM_DIV)
-    // check here because / was recognized instead of //
-    return SYM_DIV;
-
-  if (isCharacterLetter()) {
-    identifier = malloc(maxIdentifierLength + 1);
-
-    i = 0;
-
-    while (isCharacterLetterOrDigitOrUnderscore()) {
-      if (i >= maxIdentifierLength) {
-        syntaxErrorMessage((int*) "identifier too long");
-
-        exit(-1);
-      }
-
-      storeCharacter(identifier, i, character);
-
-      i = i + 1;
-
-      getCharacter();
+    if (findNextCharacter() == CHAR_EOF)
+        return SYM_EOF;
+    else if (symbol == SYM_DIV) {
+        // check here because / was recognized instead of //
+        SYMBOLS[SYM_DIV][1] = SYMBOLS[SYM_DIV][1] + 1;
+        return SYM_DIV;
     }
+    if (isCharacterLetter()) {
+        identifier = malloc(maxIdentifierLength + 1);
 
-    storeCharacter(identifier, i, 0); // null terminated string
+        i = 0;
 
-    symbol = identifierOrKeyword();
+        while (isCharacterLetterOrDigitOrUnderscore()) {
+            if (i >= maxIdentifierLength) {
+                syntaxErrorMessage((int*) "identifier too long");
 
-  } else if (isCharacterDigit()) {
-    integer = malloc(maxIntegerLength + 1);
+                exit(-1);
+            }
 
-    i = 0;
+            storeCharacter(identifier, i, character);
 
-    while (isCharacterDigit()) {
-      if (i >= maxIntegerLength) {
-        syntaxErrorMessage((int*) "integer out of bound");
+            i = i + 1;
 
-        exit(-1);
-      }
-
-      storeCharacter(integer, i, character);
-
-      i = i + 1;
-
-      getCharacter();
-    }
-
-    storeCharacter(integer, i, 0); // null terminated string
-
-    literal = atoi(integer);
-
-    if (literal < 0) {
-      if (literal == INT_MIN) {
-        if (mayBeINTMIN)
-          isINTMIN = 1;
-        else {
-          syntaxErrorMessage((int*) "integer out of bound");
-
-          exit(-1);
+            getCharacter();
         }
-      } else {
-        syntaxErrorMessage((int*) "integer out of bound");
+
+        storeCharacter(identifier, i, 0); // null terminated string
+
+        symbol = identifierOrKeyword();
+
+    } else if (isCharacterDigit()) {
+        integer = malloc(maxIntegerLength + 1);
+
+        i = 0;
+
+        while (isCharacterDigit()) {
+            if (i >= maxIntegerLength) {
+                syntaxErrorMessage((int*) "integer out of bound");
+
+                exit(-1);
+            }
+
+            storeCharacter(integer, i, character);
+
+            i = i + 1;
+
+            getCharacter();
+        }
+
+        storeCharacter(integer, i, 0); // null terminated string
+
+        literal = atoi(integer);
+
+        if (literal < 0) {
+            if (literal == INT_MIN) {
+                if (mayBeINTMIN)
+                    isINTMIN = 1;
+                else {
+                    syntaxErrorMessage((int*) "integer out of bound");
+
+                    exit(-1);
+                }
+            } else {
+                syntaxErrorMessage((int*) "integer out of bound");
+
+                exit(-1);
+            }
+        }
+
+        symbol = SYM_INTEGER;
+
+    } else if (character == CHAR_SINGLEQUOTE) {
+        getCharacter();
+
+        literal = 0;
+
+        if (character == CHAR_EOF) {
+            syntaxErrorMessage((int*) "reached end of file looking for a character literal");
+
+            exit(-1);
+        } else
+            literal = character;
+
+        getCharacter();
+
+        if (character == CHAR_SINGLEQUOTE)
+            getCharacter();
+        else if (character == CHAR_EOF) {
+            syntaxErrorCharacter(CHAR_SINGLEQUOTE);
+
+            exit(-1);
+        } else
+            syntaxErrorCharacter(CHAR_SINGLEQUOTE);
+
+        symbol = SYM_CHARACTER;
+
+    } else if (character == CHAR_DOUBLEQUOTE) {
+        getCharacter();
+
+        string = malloc(maxStringLength + 1);
+
+        i = 0;
+
+        while (isNotDoubleQuoteOrEOF()) {
+            if (i >= maxStringLength) {
+                syntaxErrorMessage((int*) "string too long");
+
+                exit(-1);
+            }
+
+            storeCharacter(string, i, character);
+
+            i = i + 1;
+
+            getCharacter();
+        }
+
+        if (character == CHAR_DOUBLEQUOTE)
+            getCharacter();
+        else {
+            syntaxErrorCharacter(CHAR_DOUBLEQUOTE);
+
+            exit(-1);
+        }
+
+        storeCharacter(string, i, 0); // null terminated string
+
+        symbol = SYM_STRING;
+
+    } else if (character == CHAR_SEMICOLON) {
+        getCharacter();
+
+        symbol = SYM_SEMICOLON;
+
+    } else if (character == CHAR_PLUS) {
+        getCharacter();
+
+        symbol = SYM_PLUS;
+
+    } else if (character == CHAR_DASH) {
+        getCharacter();
+
+        symbol = SYM_MINUS;
+
+    } else if (character == CHAR_ASTERISK) {
+        getCharacter();
+
+        symbol = SYM_ASTERISK;
+
+    } else if (character == CHAR_EQUAL) {
+        getCharacter();
+
+        if (character == CHAR_EQUAL) {
+            getCharacter();
+
+            symbol = SYM_EQUALITY;
+        } else
+            symbol = SYM_ASSIGN;
+
+    } else if (character == CHAR_LPARENTHESIS) {
+        getCharacter();
+
+        symbol = SYM_LPARENTHESIS;
+
+    } else if (character == CHAR_RPARENTHESIS) {
+        getCharacter();
+
+        symbol = SYM_RPARENTHESIS;
+
+    } else if (character == CHAR_LBRACE) {
+        getCharacter();
+
+        symbol = SYM_LBRACE;
+
+    } else if (character == CHAR_RBRACE) {
+        getCharacter();
+
+        symbol = SYM_RBRACE;
+
+    } else if (character == CHAR_LBRACKET) {
+        getCharacter();
+
+        symbol = SYM_LBRACKET;
+
+    } else if (character == CHAR_RBRACKET) {
+        getCharacter();
+
+        symbol = SYM_RBRACKET;
+
+    } else if (character == CHAR_COMMA) {
+        getCharacter();
+
+        symbol = SYM_COMMA;
+
+    } else if (character == CHAR_LT) {
+        getCharacter();
+
+        if (character == CHAR_EQUAL) {
+            getCharacter();
+
+            symbol = SYM_LEQ;
+        } else if (character == CHAR_LT) {
+            getCharacter();
+
+            symbol = SYM_SHIFTLEFT;
+        } else
+            symbol = SYM_LT;
+
+    } else if (character == CHAR_GT) {
+        getCharacter();
+
+        if (character == CHAR_EQUAL) {
+            getCharacter();
+
+            symbol = SYM_GEQ;
+        } else if (character == CHAR_GT) {
+            getCharacter();
+
+            symbol = SYM_SHIFTRIGHT;
+        } else
+            symbol = SYM_GT;
+
+    } else if (character == CHAR_EXCLAMATION) {
+        getCharacter();
+
+        if (character == CHAR_EQUAL)
+            getCharacter();
+        else
+            syntaxErrorCharacter(CHAR_EQUAL);
+
+        symbol = SYM_NOTEQ;
+
+    } else if (character == CHAR_PERCENTAGE) {
+        getCharacter();
+
+        symbol = SYM_MOD;
+
+    } else {
+        printLineNumber((int*) "error", lineNumber);
+        print((int*) "found unknown character ");
+        printCharacter(character);
+
+        println();
 
         exit(-1);
-      }
     }
 
-    symbol = SYM_INTEGER;
+    SYMBOLS[symbol][1] = SYMBOLS[symbol][1] + 1;
+    return symbol;
+}
 
-  } else if (character == CHAR_SINGLEQUOTE) {
-    getCharacter();
+void printSymbols() {
+  int i;
+  i = 0;
 
-    literal = 0;
+  print((int*) "Occurences of symbols:");
+  println();
 
-    if (character == CHAR_EOF) {
-      syntaxErrorMessage((int*) "reached end of file looking for a character literal");
-
-      exit(-1);
-    } else
-      literal = character;
-
-    getCharacter();
-
-    if (character == CHAR_SINGLEQUOTE)
-      getCharacter();
-    else if (character == CHAR_EOF) {
-      syntaxErrorCharacter(CHAR_SINGLEQUOTE);
-
-      exit(-1);
-    } else
-      syntaxErrorCharacter(CHAR_SINGLEQUOTE);
-
-    symbol = SYM_CHARACTER;
-
-  } else if (character == CHAR_DOUBLEQUOTE) {
-    getCharacter();
-
-    string = malloc(maxStringLength + 1);
-
-    i = 0;
-
-    while (isNotDoubleQuoteOrEOF()) {
-      if (i >= maxStringLength) {
-        syntaxErrorMessage((int*) "string too long");
-
-        exit(-1);
-      }
-
-      storeCharacter(string, i, character);
-
-      i = i + 1;
-
-      getCharacter();
-    }
-
-    if (character == CHAR_DOUBLEQUOTE)
-      getCharacter();
-    else {
-      syntaxErrorCharacter(CHAR_DOUBLEQUOTE);
-
-      exit(-1);
-    }
-
-    storeCharacter(string, i, 0); // null terminated string
-
-    symbol = SYM_STRING;
-
-  } else if (character == CHAR_SEMICOLON) {
-    getCharacter();
-
-    symbol = SYM_SEMICOLON;
-
-  } else if (character == CHAR_PLUS) {
-    getCharacter();
-
-    symbol = SYM_PLUS;
-
-  } else if (character == CHAR_DASH) {
-    getCharacter();
-
-    symbol = SYM_MINUS;
-
-  } else if (character == CHAR_ASTERISK) {
-    getCharacter();
-
-    symbol = SYM_ASTERISK;
-
-  } else if (character == CHAR_EQUAL) {
-    getCharacter();
-
-    if (character == CHAR_EQUAL) {
-      getCharacter();
-
-      symbol = SYM_EQUALITY;
-    } else
-      symbol = SYM_ASSIGN;
-
-  } else if (character == CHAR_LPARENTHESIS) {
-    getCharacter();
-
-    symbol = SYM_LPARENTHESIS;
-
-  } else if (character == CHAR_RPARENTHESIS) {
-    getCharacter();
-
-    symbol = SYM_RPARENTHESIS;
-
-  } else if (character == CHAR_LBRACE) {
-    getCharacter();
-
-    symbol = SYM_LBRACE;
-
-  } else if (character == CHAR_RBRACE) {
-    getCharacter();
-
-    symbol = SYM_RBRACE;
-
-  } else if (character == CHAR_COMMA) {
-    getCharacter();
-
-    symbol = SYM_COMMA;
-
-  } else if (character == CHAR_LT) {
-    getCharacter();
-
-    if (character == CHAR_EQUAL) {
-      getCharacter();
-
-      symbol = SYM_LEQ;
-    } else
-      symbol = SYM_LT;
-
-  } else if (character == CHAR_GT) {
-    getCharacter();
-
-    if (character == CHAR_EQUAL) {
-      getCharacter();
-
-      symbol = SYM_GEQ;
-    } else
-      symbol = SYM_GT;
-
-  } else if (character == CHAR_EXCLAMATION) {
-    getCharacter();
-
-    if (character == CHAR_EQUAL)
-      getCharacter();
-    else
-      syntaxErrorCharacter(CHAR_EQUAL);
-
-    symbol = SYM_NOTEQ;
-
-  } else if (character == CHAR_PERCENTAGE) {
-    getCharacter();
-
-    symbol = SYM_MOD;
-
-  } else {
-    printLineNumber((int*) "error", lineNumber);
-    print((int*) "found unknown character ");
-    printCharacter(character);
-
+  while (i < NUMBEROFSYMBOLS) {
+    putCharacter(CHAR_DOUBLEQUOTE);
+    print(SYMBOLS[i][0]);
+    putCharacter(CHAR_DOUBLEQUOTE);
+    print((int*) ": ");
+    print(itoa(SYMBOLS[i][1], string_buffer, 10, 0, 0));
     println();
-
-    exit(-1);
+    i = i + 1;
   }
 
-  return symbol;
 }
 
 // -----------------------------------------------------------------
 // ------------------------- SYMBOL TABLE --------------------------
 // -----------------------------------------------------------------
 
-void createSymbolTableEntry(int whichTable, int* string, int line, int class, int type, int value, int address) {
+void createSymbolTableEntry(int whichTable, int* string, int line, int class, int type, int value, int address, int size1, int size2) {
   int* newEntry;
 
-  newEntry = malloc(2 * SIZEOFINTSTAR + 6 * SIZEOFINT);
+  newEntry = malloc(2 * SIZEOFINTSTAR + 8 * SIZEOFINT);
 
   setString(newEntry, string);
   setLineNumber(newEntry, line);
@@ -1940,6 +2062,8 @@ void createSymbolTableEntry(int whichTable, int* string, int line, int class, in
   setType(newEntry, type);
   setValue(newEntry, value);
   setAddress(newEntry, address);
+  setSize1(newEntry, size1);
+  setSize2(newEntry, size2);
 
   // create entry at head of symbol table
   if (whichTable == GLOBAL_TABLE) {
@@ -1975,6 +2099,12 @@ int* getSymbolTableEntry(int* string, int class) {
   int* entry;
 
   if (class == VARIABLE) {
+    // local variables override global variables
+    entry = searchSymbolTable(local_symbol_table, string, class);
+
+    if (entry != (int*) 0)
+      return entry;
+  } else if (class == ARRAY) {
     // local variables override global variables
     entry = searchSymbolTable(local_symbol_table, string, class);
 
@@ -2107,6 +2237,15 @@ int isComparison() {
     return 0;
 }
 
+int isShiftLeftOrRight() {
+    if (symbol == SYM_SHIFTLEFT)
+        return 1;
+    else if (symbol == SYM_SHIFTRIGHT)
+        return 1;
+    else
+        return 0;
+}
+
 int lookForFactor() {
   if (symbol == SYM_LPARENTHESIS)
     return 0;
@@ -2178,6 +2317,16 @@ int currentTemporary() {
 int previousTemporary() {
   if (allocatedTemporaries > 1)
     return currentTemporary() - 1;
+  else {
+    syntaxErrorMessage((int*) "illegal register access");
+
+    exit(-1);
+  }
+}
+
+int previousPreviousTemporary() {
+  if (allocatedTemporaries > 2)
+    return currentTemporary() - 2;
   else {
     syntaxErrorMessage((int*) "illegal register access");
 
@@ -2291,16 +2440,49 @@ int* getVariable(int* variable) {
   return entry;
 }
 
+int* getArray(int* array) {
+  int* entry;
+
+  entry = getSymbolTableEntry(array, ARRAY);
+
+  if (entry == (int*) 0) {
+    // can also be defined as pointer and then malloc
+    entry = getSymbolTableEntry(array, VARIABLE);
+
+    if (entry == (int*) 0) {
+      printLineNumber((int*) "error", lineNumber);
+      print(array);
+      print((int*) " undeclared");
+      println();
+
+      exit(-1);
+    }
+  }
+
+  return entry;
+}
+
 int load_variable(int* variable) {
   int* entry;
 
-  entry = getVariable(variable);
+  entry = getArray(variable);
 
   talloc();
 
-  emitIFormat(OP_LW, getScope(entry), currentTemporary(), getAddress(entry));
+  if (getClass(entry) == ARRAY) {
+    emitRFormat(OP_SPECIAL, REG_ZR, getScope(entry), currentTemporary(), FCT_ADDU);
 
-  return getType(entry);
+    talloc();
+    emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), getAddress(entry));
+
+    emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_ADDU);
+    tfree(1);
+
+    return INTSTAR_T;
+  } else {
+    emitIFormat(OP_LW, getScope(entry), currentTemporary(), getAddress(entry));
+    return getType(entry);
+  }
 }
 
 void load_integer(int value) {
@@ -2352,11 +2534,62 @@ void load_string(int* string) {
 
   allocatedMemory = allocatedMemory + roundUp(length, WORDSIZE);
 
-  createSymbolTableEntry(GLOBAL_TABLE, string, lineNumber, STRING, INTSTAR_T, 0, -allocatedMemory);
+  createSymbolTableEntry(GLOBAL_TABLE, string, lineNumber, STRING, INTSTAR_T, 0, -allocatedMemory, 0, 0);
 
   talloc();
 
   emitIFormat(OP_ADDIU, REG_GP, currentTemporary(), -allocatedMemory);
+}
+
+void load_from_array(int* entry, int dimensions) {
+
+  if (dimensions == 2) {
+    // sizeof(dimension2) * previousTemporary
+    talloc();
+    emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), getSize2(entry));
+    emitRFormat(OP_SPECIAL, currentTemporary(), previousPreviousTemporary(), 0, FCT_MULTU);
+    emitRFormat(OP_SPECIAL, 0, 0, previousPreviousTemporary(), FCT_MFLO);
+    tfree(1);
+
+    emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_ADDU);
+    tfree(1);
+  }
+
+  talloc();
+  if (getType(entry) == INT_T)
+    emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), SIZEOFINT);
+  else if (getType(entry) == INTSTAR_T)
+    emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), SIZEOFINTSTAR);
+
+  emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), 0, FCT_MULTU);
+  emitRFormat(OP_SPECIAL, 0, 0, previousTemporary(), FCT_MFLO);
+  tfree(1);
+
+  // load address of first array element.
+  if (getClass(entry) == ARRAY) {
+
+    talloc();
+    //address here is just offset from scope pointer ($gp or $fp)
+    emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), getAddress(entry));
+
+    // increase address of first element by array index * size of type => address of desired element
+    emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_ADDU);
+    tfree(1);
+
+    // get scope pointer and add address offset to it e.g. $fp + address offset
+    emitRFormat(OP_SPECIAL, getScope(entry), currentTemporary(), currentTemporary(), FCT_ADDU);
+
+  } else if (getClass(entry) == VARIABLE) {
+
+    // currentTemp holds index * 4
+    // Now get address of first array element by loading from getAddress(entry)
+    talloc();
+    emitIFormat(OP_LW, getScope(entry), currentTemporary(), getAddress(entry));
+
+    // Now add index offset to address
+    emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_ADDU);
+    tfree(1);
+  }
 }
 
 int help_call_codegen(int* entry, int* procedure) {
@@ -2364,7 +2597,7 @@ int help_call_codegen(int* entry, int* procedure) {
 
   if (entry == (int*) 0) {
     // CASE 1: function call, no definition, no declaration.
-    createSymbolTableEntry(GLOBAL_TABLE, procedure, lineNumber, PROCEDURE, INT_T, 0, binaryLength);
+    createSymbolTableEntry(GLOBAL_TABLE, procedure, lineNumber, PROCEDURE, INT_T, 0, binaryLength, 0, 0);
 
     emitJFormat(OP_JAL, 0);
 
@@ -2432,8 +2665,47 @@ void help_procedure_epilogue(int parameters) {
   emitRFormat(OP_SPECIAL, REG_RA, 0, 0, FCT_JR);
 }
 
-int gr_call(int* procedure) {
-  int* entry;
+int isConstant(int *operandInfo) {
+  return (*operandInfo == CONSTANT);
+}
+
+int getOperandsValue(int *operandInfo) {
+  return *(operandInfo + 1);
+}
+
+void setConstant(int *operandInfo) {
+  *operandInfo = CONSTANT;
+}
+
+void unsetConstant(int *operandInfo) {
+  *operandInfo = NONCONSTANT;
+}
+
+void setOperandsValue(int *operandInfo, int value) {
+  *(operandInfo + 1) = value;
+}
+
+void delayedLoading(int lIsConstant, int lValue, int rIsConstant, int rValue) {
+  if (lIsConstant == 1) {
+    if (lValue >= 0)
+      load_integer(lValue);
+    else {
+      load_integer(-lValue);
+      emitRFormat(OP_SPECIAL, REG_ZR, currentTemporary(), currentTemporary(), FCT_SUBU);
+    }
+  }
+  if (rIsConstant == 1) {
+    if (rValue >= 0)
+      load_integer(rValue);
+    else {
+      load_integer(-rValue);
+      emitRFormat(OP_SPECIAL, REG_ZR, currentTemporary(), currentTemporary(), FCT_SUBU);
+    }
+  }
+}
+
+int gr_call(int *procedure, int *operandInfo) {
+  int *entry;
   int numberOfTemporaries;
   int type;
 
@@ -2452,7 +2724,7 @@ int gr_call(int* procedure) {
   // assert: allocatedTemporaries == 0
 
   if (isExpression()) {
-    gr_expression();
+    gr_expression(operandInfo);
 
     // TODO: check if types/number of parameters is correct
 
@@ -2465,7 +2737,7 @@ int gr_call(int* procedure) {
     while (symbol == SYM_COMMA) {
       getSymbol();
 
-      gr_expression();
+      gr_expression(operandInfo);
 
       // push more parameters onto stack
       emitIFormat(OP_ADDIU, REG_SP, REG_SP, -WORDSIZE);
@@ -2501,12 +2773,17 @@ int gr_call(int* procedure) {
   return type;
 }
 
-int gr_factor() {
+int gr_factor(int *operandInfo) {
   int hasCast;
   int cast;
   int type;
+  int* entry;
 
-  int* variableOrProcedureName;
+  int *variableOrProcedureName;
+
+  int itype;
+
+  unsetConstant(operandInfo);
 
   // assert: n = allocatedTemporaries
 
@@ -2538,16 +2815,16 @@ int gr_factor() {
       else
         syntaxErrorSymbol(SYM_RPARENTHESIS);
 
-    // not a cast: "(" expression ")"
+      // not a cast: "(" expression ")"
     } else {
-      type = gr_expression();
+      type = gr_expression(operandInfo);
 
       if (symbol == SYM_RPARENTHESIS)
         getSymbol();
       else
         syntaxErrorSymbol(SYM_RPARENTHESIS);
 
-      // assert: allocatedTemporaries == n + 1
+        // assert: allocatedTemporaries == n + 1
 
       return type;
     }
@@ -2567,7 +2844,7 @@ int gr_factor() {
     } else if (symbol == SYM_LPARENTHESIS) {
       getSymbol();
 
-      type = gr_expression();
+      type = gr_expression(operandInfo);
 
       if (symbol == SYM_RPARENTHESIS)
         getSymbol();
@@ -2594,7 +2871,7 @@ int gr_factor() {
       getSymbol();
 
       // function call: identifier "(" ... ")"
-      type = gr_call(variableOrProcedureName);
+      type = gr_call(variableOrProcedureName, operandInfo);
 
       talloc();
 
@@ -2603,13 +2880,73 @@ int gr_factor() {
 
       // reset return register
       emitIFormat(OP_ADDIU, REG_ZR, REG_V0, 0);
+
+    // identifier "[" ... "]" array access
+    } else if (symbol == SYM_LBRACKET) {
+      getSymbol();
+
+      // assert: allocatedTemporaries == n
+
+      itype = gr_expression(operandInfo);
+
+      if (itype != INT_T)
+        typeWarning(INT_T, itype);
+
+      if (symbol == SYM_RBRACKET) {
+        getSymbol();
+
+        if (symbol == SYM_LBRACKET) {
+          getSymbol();
+
+          itype = gr_expression(operandInfo);
+
+          if (itype != INT_T)
+            typeWarning(INT_T, itype);
+
+          if (symbol == SYM_RBRACKET) {
+
+            // Load from array 2 dim
+            entry = getArray(variableOrProcedureName);
+
+            load_from_array(entry, 2);
+
+            //emitIFormat(OP_SW, previousTemporary(), currentTemporary(),0);
+            emitIFormat(OP_LW, currentTemporary(), currentTemporary(), 0);
+
+            getSymbol();
+
+          } else
+            syntaxErrorSymbol(SYM_RBRACKET);
+
+
+        } else {
+          // assert: allocatedTemporaries == n + 1
+
+          entry = getArray(variableOrProcedureName);
+
+          load_from_array(entry, 1);
+
+          //emitIFormat(OP_SW, previousTemporary(), currentTemporary(),0);
+          emitIFormat(OP_LW, currentTemporary(), currentTemporary(), 0);
+
+          //tfree(1);
+
+          // assert: allocatedTemporaries == n + 1
+        }
+      } else
+        syntaxErrorSymbol(SYM_RBRACKET);
+
     } else
       // variable access: identifier
       type = load_variable(variableOrProcedureName);
 
   // integer?
   } else if (symbol == SYM_INTEGER) {
-    load_integer(literal);
+    // delayed loading, load_integer will be called in higher up
+    // functions only when necessary
+    // load_integer(literal);
+    setConstant(operandInfo);
+    setOperandsValue(operandInfo, literal);
 
     getSymbol();
 
@@ -2637,7 +2974,7 @@ int gr_factor() {
   } else if (symbol == SYM_LPARENTHESIS) {
     getSymbol();
 
-    type = gr_expression();
+    type = gr_expression(operandInfo);
 
     if (symbol == SYM_RPARENTHESIS)
       getSymbol();
@@ -2646,7 +2983,7 @@ int gr_factor() {
   } else
     syntaxErrorUnexpected();
 
-  // assert: allocatedTemporaries == n + 1
+  // assert: allocatedTemporaries == n + 1 *
 
   if (hasCast)
     return cast;
@@ -2654,56 +2991,108 @@ int gr_factor() {
     return type;
 }
 
-int gr_term() {
+int gr_term(int *operandInfo) {
   int ltype;
   int operatorSymbol;
   int rtype;
+  int lIsConstant;
+  int lValue;
+  int rIsConstant;
+  int rValue;
 
   // assert: n = allocatedTemporaries
 
-  ltype = gr_factor();
+  ltype = gr_factor(operandInfo);
 
-  // assert: allocatedTemporaries == n + 1
+  lIsConstant = isConstant(operandInfo);
+  lValue = getOperandsValue(operandInfo);
+
+  // assert: allocatedTemporaries == n + 1 *
 
   // * / or % ?
   while (isStarOrDivOrModulo()) {
     operatorSymbol = symbol;
 
+
     getSymbol();
 
-    rtype = gr_factor();
+    rtype = gr_factor(operandInfo);
 
-    // assert: allocatedTemporaries == n + 2
+    // assert: allocatedTemporaries == n + 2 *
 
     if (ltype != rtype)
       typeWarning(ltype, rtype);
 
-    if (operatorSymbol == SYM_ASTERISK) {
-      emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), 0, FCT_MULTU);
-      emitRFormat(OP_SPECIAL, 0, 0, previousTemporary(), FCT_MFLO);
+    rIsConstant = isConstant(operandInfo);
+    rValue = getOperandsValue(operandInfo);
 
-    } else if (operatorSymbol == SYM_DIV) {
-      emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), 0, FCT_DIVU);
-      emitRFormat(OP_SPECIAL, 0, 0, previousTemporary(), FCT_MFLO);
+    if (and(lIsConstant, rIsConstant)) {
 
-    } else if (operatorSymbol == SYM_MOD) {
-      emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), 0, FCT_DIVU);
-      emitRFormat(OP_SPECIAL, 0, 0, previousTemporary(), FCT_MFHI);
+      if (operatorSymbol == SYM_ASTERISK) {
+        lValue = lValue * getOperandsValue(operandInfo);
+
+      } else if (operatorSymbol == SYM_DIV) {
+        lValue = lValue / getOperandsValue(operandInfo);
+
+      } else if (operatorSymbol == SYM_MOD) {
+        lValue = lValue % getOperandsValue(operandInfo);
+      }
+
+      // reset as constant value
+      setConstant(operandInfo);
+      setOperandsValue(operandInfo, lValue);
+
+      lIsConstant = isConstant(operandInfo);
+
+      ltype = INT_T;
+
+    } else {
+      unsetConstant(operandInfo);
+
+      delayedLoading(lIsConstant, lValue, rIsConstant, rValue);
+
+      if (operatorSymbol == SYM_ASTERISK) {
+        emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), 0, FCT_MULTU);
+        emitRFormat(OP_SPECIAL, 0, 0, previousTemporary(), FCT_MFLO);
+
+      } else if (operatorSymbol == SYM_DIV) {
+        emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), 0, FCT_DIVU);
+        emitRFormat(OP_SPECIAL, 0, 0, previousTemporary(), FCT_MFLO);
+
+      } else if (operatorSymbol == SYM_MOD) {
+        emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), 0, FCT_DIVU);
+        emitRFormat(OP_SPECIAL, 0, 0, previousTemporary(), FCT_MFHI);
+      }
+
+      tfree(1);
+
     }
 
-    tfree(1);
   }
 
-  // assert: allocatedTemporaries == n + 1
+    // assert: allocatedTemporaries == n + 1 or n
 
   return ltype;
 }
 
-int gr_simpleExpression() {
+int gr_simpleExpression(int *operandInfo) {
   int sign;
   int ltype;
   int operatorSymbol;
   int rtype;
+  int lIsConstant;
+  int lValue;
+  int rIsConstant;
+  int rValue;
+  int operationPending;
+  int prevType;
+  int prevOperatorSymbol;
+  int emitInstruction;
+  int switchOperands;
+
+  // clean start, no operation pending
+  operationPending = 0;
+  switchOperands = 0;
 
   // assert: n = allocatedTemporaries
 
@@ -2718,6 +3107,7 @@ int gr_simpleExpression() {
 
     mayBeINTMIN = 0;
 
+
     if (isINTMIN) {
       isINTMIN = 0;
 
@@ -2728,7 +3118,10 @@ int gr_simpleExpression() {
   } else
     sign = 0;
 
-  ltype = gr_term();
+  ltype = gr_term(operandInfo);
+
+  lIsConstant = isConstant(operandInfo);
+  lValue = getOperandsValue(operandInfo);
 
   // assert: allocatedTemporaries == n + 1
 
@@ -2739,7 +3132,11 @@ int gr_simpleExpression() {
       ltype = INT_T;
     }
 
-    emitRFormat(OP_SPECIAL, REG_ZR, currentTemporary(), currentTemporary(), FCT_SUBU);
+    if (lIsConstant) {
+      lValue = -lValue;
+      setOperandsValue(operandInfo, lValue);
+    } else
+       emitRFormat(OP_SPECIAL, REG_ZR, currentTemporary(), currentTemporary(), FCT_SUBU);
   }
 
   // + or -?
@@ -2748,115 +3145,384 @@ int gr_simpleExpression() {
 
     getSymbol();
 
-    rtype = gr_term();
+    rtype = gr_term(operandInfo);
 
-    // assert: allocatedTemporaries == n + 2
+    rIsConstant = isConstant(operandInfo);
+    rValue = getOperandsValue(operandInfo);
 
-    if (operatorSymbol == SYM_PLUS) {
-      if (ltype == INTSTAR_T) {
-        if (rtype == INT_T)
+    // assert: allocatedTemporaries == n + 2 or n + 1
+
+    // previous sequence was non-constant, constant. now is non-constant
+    // cannot fold, load constant value, emit pending operation
+    // and emit current operation
+    if (and(operationPending, not(rIsConstant))) {
+
+      unsetConstant(operandInfo);
+
+      // load previous value n-1, this is stored in lValue
+      delayedLoading(lIsConstant, lValue, 0, 0);
+
+      // emit operation for n-2 OP n-1
+      if (prevOperatorSymbol == SYM_PLUS) {
+        if (prevType == INTSTAR_T) {
+          if (ltype == INT_T)
+            // pointer arithmetic: factor of 2^2 of integer operand
+            emitLeftShiftBy(2);
+          } else if (ltype == INTSTAR_T)
+            typeWarning(prevType, ltype);
+
+          emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_ADDU);
+      } else if (prevOperatorSymbol == SYM_MINUS) {
+        if (prevType != ltype)
+          typeWarning(prevType, ltype);
+
+        emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SUBU);
+      }
+      tfree(1);
+
+      ltype = prevType;
+
+      // now load current value n (=r)
+      delayedLoading(0, 0, rIsConstant, rValue);
+
+      // emit Instructions for current operation
+      emitInstruction = 1;
+      operationPending = 0;
+
+    // previous sequence was non-constant, constant. now is constant. can fold
+    // this is the same as and(lIsConstant, rIsConstant)
+    // else if and(operationPending, rIsConstant) or
+    } else if (and(lIsConstant, rIsConstant)) {
+
+      if (operatorSymbol == SYM_PLUS) {
+        if (ltype == INTSTAR_T) {
+          if (rtype == INT_T)
+            // pointer arithmetic: factor of 2^2 of integer operand
+            rValue = rValue << 4;
+        } else if (rtype == INTSTAR_T)
+          typeWarning(ltype, rtype);
+
+          lValue = lValue + rValue;
+
+      } else if (operatorSymbol == SYM_MINUS) {
+        if (ltype != rtype)
+          typeWarning(ltype, rtype);
+
+        lValue = lValue - rValue;
+
+      }
+
+      // reset as constant value
+      setConstant(operandInfo);
+      setOperandsValue(operandInfo, lValue);
+
+      lIsConstant = isConstant(operandInfo);
+
+      ltype = INT_T;
+
+      emitInstruction = 0;
+      // operationPending stays active
+
+    // l Is Constant, r Is Not => Load l and emit
+    } else if (lIsConstant) {
+
+      unsetConstant(operandInfo);
+      delayedLoading(lIsConstant, lValue, rIsConstant, rValue);
+
+      lIsConstant = isConstant(operandInfo);
+
+      emitInstruction = 1;
+      // r is already loaded to register, l is loaded now -> wrong order
+      switchOperands = 1;
+
+    // l Is Not a Constant, but r Is a Constant => Load l, set r as new l
+    // set operation pending
+    } else if (rIsConstant){
+
+      prevType = ltype;
+
+      if (operatorSymbol == SYM_MINUS) {
+
+        rValue = -rValue;
+        prevOperatorSymbol = SYM_PLUS;
+
+      } else
+        prevOperatorSymbol = operatorSymbol;
+
+      // no need for a prevValue, is already loaded to register
+      lValue = rValue;
+      ltype = rtype;
+      operationPending = 1;
+
+      // set as constant value
+      setConstant(operandInfo);
+      setOperandsValue(operandInfo, lValue);
+
+      lIsConstant = isConstant(operandInfo);
+
+      emitInstruction = 0;
+
+    // none of the value l and r is a constant, no folding possible -> emit
+    } else {
+
+      unsetConstant(operandInfo);
+      delayedLoading(lIsConstant, lValue, rIsConstant, rValue);
+
+      emitInstruction = 1;
+    }
+
+    if (emitInstruction) {
+      if (operatorSymbol == SYM_PLUS) {
+        if (ltype == INTSTAR_T) {
+          if (rtype == INT_T)
+            // pointer arithmetic: factor of 2^2 of integer operand
+            emitLeftShiftBy(2);
+          } else if (rtype == INTSTAR_T)
+            typeWarning(ltype, rtype);
+
+          emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_ADDU);
+
+      } else if (operatorSymbol == SYM_MINUS) {
+        if (ltype != rtype)
+          typeWarning(ltype, rtype);
+        if (switchOperands) {
+
+          emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_SUBU);
+          switchOperands = 0;
+        } else
+          emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SUBU);
+      }
+
+      tfree(1);
+    }
+  }
+
+  if (operationPending) {
+    unsetConstant(operandInfo);
+    delayedLoading(lIsConstant, lValue, 0, 0);
+
+    if (prevOperatorSymbol == SYM_PLUS) {
+      if (prevType == INTSTAR_T) {
+        if (ltype == INT_T)
           // pointer arithmetic: factor of 2^2 of integer operand
           emitLeftShiftBy(2);
-      } else if (rtype == INTSTAR_T)
-        typeWarning(ltype, rtype);
+      } else if (ltype == INTSTAR_T)
+        typeWarning(prevType, ltype);
 
-      emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_ADDU);
-
-    } else if (operatorSymbol == SYM_MINUS) {
-      if (ltype != rtype)
-        typeWarning(ltype, rtype);
+        emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_ADDU);
+    } else if (prevOperatorSymbol == SYM_MINUS) {
+      if (prevType != ltype)
+        typeWarning(prevType, ltype);
 
       emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SUBU);
     }
 
     tfree(1);
+
+    ltype = prevType;
   }
 
-  // assert: allocatedTemporaries == n + 1
+    // assert: allocatedTemporaries == n + 1 or n
 
   return ltype;
 }
 
-int gr_expression() {
+int gr_extExpression(int *operandInfo) {
   int ltype;
   int operatorSymbol;
   int rtype;
+  int lIsConstant;
+  int lValue;
+  int rIsConstant;
+  int rValue;
 
   // assert: n = allocatedTemporaries
 
-  ltype = gr_simpleExpression();
+  ltype = gr_simpleExpression(operandInfo);
 
-  // assert: allocatedTemporaries == n + 1
+  lIsConstant = isConstant(operandInfo);
+  lValue = getOperandsValue(operandInfo);
 
-  //optional: ==, !=, <, >, <=, >= simpleExpression
+  // assert: allocatedTemporaries == n + 1 or n
+
+  // << or >> ?
+  while (isShiftLeftOrRight()) {
+    operatorSymbol = symbol;
+
+    getSymbol();
+
+    rtype = gr_simpleExpression(operandInfo);
+
+    rIsConstant = isConstant(operandInfo);
+    rValue = getOperandsValue(operandInfo);
+
+    // assert: allocatedTemporaries == n + 2 or n + 1
+
+    if (and(lIsConstant, rIsConstant)) {
+
+      if (operatorSymbol == SYM_SHIFTLEFT)
+        lValue = lValue << rValue;
+
+      else if (operatorSymbol == SYM_SHIFTRIGHT)
+        lValue = lValue >> rValue;
+
+      // reset as constant
+      setConstant(operandInfo);
+      setOperandsValue(operandInfo, lValue);
+
+      lIsConstant = isConstant(operandInfo);
+
+      ltype = INT_T;
+
+    } else {
+      unsetConstant(operandInfo);
+      delayedLoading(lIsConstant, lValue, rIsConstant, rValue);
+
+      if (operatorSymbol == SYM_SHIFTLEFT) {
+
+        emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_SLLV);
+
+      } else if (operatorSymbol == SYM_SHIFTRIGHT) {
+
+        emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_SRLV);
+      }
+
+        tfree(1);
+    }
+  }
+
+  // assert: allocatedTemporaries == n + 1 or n
+
+  return ltype;
+}
+
+int gr_expression(int *operandInfo) {
+  int ltype;
+  int operatorSymbol;
+  int rtype;
+  int lIsConstant;
+  int lValue;
+  int rIsConstant;
+  int rValue;
+
+  // assert: n = allocatedTemporaries
+
+  ltype = gr_extExpression(operandInfo);
+
+  lIsConstant = isConstant(operandInfo);
+  lValue = getOperandsValue(operandInfo);
+
+  // assert: allocatedTemporaries == n + 1 or n
+
+  //optional: ==, !=, <, >, <=, >= extExpression
   if (isComparison()) {
     operatorSymbol = symbol;
 
     getSymbol();
 
-    rtype = gr_simpleExpression();
+    rtype = gr_extExpression(operandInfo);
+
+    rIsConstant = isConstant(operandInfo);
+    rValue = getOperandsValue(operandInfo);
 
     // assert: allocatedTemporaries == n + 2
 
     if (ltype != rtype)
       typeWarning(ltype, rtype);
 
-    if (operatorSymbol == SYM_EQUALITY) {
-      // subtract, if result = 0 then 1, else 0
-      emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SUBU);
+    if (and(lIsConstant, rIsConstant)) {
 
-      tfree(1);
+      if (operatorSymbol == SYM_EQUALITY)
+        lValue = (lValue == rValue);
 
-      emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), 4);
-      emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 0);
-      emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), 2);
-      emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 1);
+      else if (operatorSymbol == SYM_NOTEQ)
+        lValue = (lValue != rValue);
 
-    } else if (operatorSymbol == SYM_NOTEQ) {
-      // subtract, if result = 0 then 0, else 1
-      emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SUBU);
+      else if (operatorSymbol == SYM_LT)
+        lValue = (lValue < rValue);
 
-      tfree(1);
+      else if (operatorSymbol == SYM_GT)
+        lValue = (lValue > rValue);
 
-      emitIFormat(OP_BNE, REG_ZR, currentTemporary(), 4);
-      emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 0);
-      emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), 2);
-      emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 1);
+      else if (operatorSymbol == SYM_LEQ)
+        lValue = (lValue <= rValue);
 
-    } else if (operatorSymbol == SYM_LT) {
-      // set to 1 if a < b, else 0
-      emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SLT);
+      else if (operatorSymbol == SYM_GEQ)
+        lValue = (lValue >= rValue);
 
-      tfree(1);
+      unsetConstant(operandInfo);
 
-    } else if (operatorSymbol == SYM_GT) {
-      // set to 1 if b < a, else 0
-      emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_SLT);
+    } else {
+      unsetConstant(operandInfo);
+      delayedLoading(lIsConstant, lValue, rIsConstant, rValue);
 
-      tfree(1);
+      if (operatorSymbol == SYM_EQUALITY) {
 
-    } else if (operatorSymbol == SYM_LEQ) {
-      // if b < a set 0, else 1
-      emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_SLT);
+        // subtract, if result = 0 then 1, else 0
+        emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SUBU);
 
-      tfree(1);
+        tfree(1);
 
-      emitIFormat(OP_BNE, REG_ZR, currentTemporary(), 4);
-      emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 1);
-      emitIFormat(OP_BEQ, REG_ZR, REG_ZR, 2);
-      emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 0);
+        emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), 4);
+        emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 0);
+        emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), 2);
+        emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 1);
 
-    } else if (operatorSymbol == SYM_GEQ) {
-      // if a < b set 0, else 1
-      emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SLT);
+      } else if (operatorSymbol == SYM_NOTEQ) {
 
-      tfree(1);
+        // subtract, if result = 0 then 0, else 1
+        emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SUBU);
 
-      emitIFormat(OP_BNE, REG_ZR, currentTemporary(), 4);
-      emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 1);
-      emitIFormat(OP_BEQ, REG_ZR, REG_ZR, 2);
-      emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 0);
+        tfree(1);
+
+        emitIFormat(OP_BNE, REG_ZR, currentTemporary(), 4);
+        emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 0);
+        emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), 2);
+        emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 1);
+
+      } else if (operatorSymbol == SYM_LT) {
+
+        // set to 1 if a < b, else 0
+        emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SLT);
+
+        tfree(1);
+
+      } else if (operatorSymbol == SYM_GT) {
+
+        // set to 1 if b < a, else 0
+        emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_SLT);
+
+        tfree(1);
+
+      } else if (operatorSymbol == SYM_LEQ) {
+
+        // if b < a set 0, else 1
+        emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_SLT);
+
+        tfree(1);
+
+        emitIFormat(OP_BNE, REG_ZR, currentTemporary(), 4);
+        emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 1);
+        emitIFormat(OP_BEQ, REG_ZR, REG_ZR, 2);
+        emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 0);
+
+      } else if (operatorSymbol == SYM_GEQ) {
+
+        // if a < b set 0, else 1
+        emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SLT);
+
+        tfree(1);
+
+        emitIFormat(OP_BNE, REG_ZR, currentTemporary(), 4);
+        emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 1);
+        emitIFormat(OP_BEQ, REG_ZR, REG_ZR, 2);
+        emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 0);
+      }
     }
+  } else {
+    rIsConstant = 0;
+    delayedLoading(lIsConstant, lValue, rIsConstant, rValue);
+    unsetConstant(operandInfo);
   }
 
   // assert: allocatedTemporaries == n + 1
@@ -2864,7 +3530,7 @@ int gr_expression() {
   return ltype;
 }
 
-void gr_while() {
+void gr_while(int *operandInfo) {
   int brBackToWhile;
   int brForwardToEnd;
 
@@ -2881,7 +3547,7 @@ void gr_while() {
     if (symbol == SYM_LPARENTHESIS) {
       getSymbol();
 
-      gr_expression();
+      gr_expression(operandInfo);
 
       // do not know where to branch, fixup later
       brForwardToEnd = binaryLength;
@@ -2898,7 +3564,7 @@ void gr_while() {
           getSymbol();
 
           while (isNotRbraceOrEOF())
-            gr_statement();
+            gr_statement(operandInfo);
 
           if (symbol == SYM_RBRACE)
             getSymbol();
@@ -2910,7 +3576,7 @@ void gr_while() {
         }
         // only one statement without {}
         else
-          gr_statement();
+          gr_statement(operandInfo);
       } else
         syntaxErrorSymbol(SYM_RPARENTHESIS);
     } else
@@ -2929,7 +3595,7 @@ void gr_while() {
   // assert: allocatedTemporaries == 0
 }
 
-void gr_if() {
+void gr_if(int *operandInfo) {
   int brForwardToElseOrEnd;
   int brForwardToEnd;
 
@@ -2942,7 +3608,7 @@ void gr_if() {
     if (symbol == SYM_LPARENTHESIS) {
       getSymbol();
 
-      gr_expression();
+      gr_expression(operandInfo);
 
       // if the "if" case is not true, we jump to "else" (if provided)
       brForwardToElseOrEnd = binaryLength;
@@ -2959,7 +3625,7 @@ void gr_if() {
           getSymbol();
 
           while (isNotRbraceOrEOF())
-            gr_statement();
+            gr_statement(operandInfo);
 
           if (symbol == SYM_RBRACE)
             getSymbol();
@@ -2971,7 +3637,7 @@ void gr_if() {
         }
         // only one statement without {}
         else
-          gr_statement();
+          gr_statement(operandInfo);
 
         //optional: else
         if (symbol == SYM_ELSE) {
@@ -2989,7 +3655,7 @@ void gr_if() {
             getSymbol();
 
             while (isNotRbraceOrEOF())
-              gr_statement();
+              gr_statement(operandInfo);
 
             if (symbol == SYM_RBRACE)
               getSymbol();
@@ -3001,7 +3667,7 @@ void gr_if() {
 
           // only one statement without {}
           } else
-            gr_statement();
+            gr_statement(operandInfo);
 
           // if the "if" case was true, we jump here
           fixup_relative(brForwardToEnd);
@@ -3018,7 +3684,7 @@ void gr_if() {
   // assert: allocatedTemporaries == 0
 }
 
-void gr_return(int returnType) {
+void gr_return(int returnType, int *operandInfo) {
   int type;
 
   // assert: allocatedTemporaries == 0
@@ -3028,9 +3694,9 @@ void gr_return(int returnType) {
   else
     syntaxErrorSymbol(SYM_RETURN);
 
-  // optional: expression
+    // optional: expression
   if (symbol != SYM_SEMICOLON) {
-    type = gr_expression();
+    type = gr_expression(operandInfo);
 
     if (returnType == VOID_T)
       typeWarning(type, returnType);
@@ -3054,11 +3720,12 @@ void gr_return(int returnType) {
   // assert: allocatedTemporaries == 0
 }
 
-void gr_statement() {
+void gr_statement(int *operandInfo) {
   int ltype;
   int rtype;
-  int* variableOrProcedureName;
-  int* entry;
+  int *variableOrProcedureName;
+  int *entry;
+  int itype;
 
   // assert: allocatedTemporaries == 0;
 
@@ -3088,7 +3755,7 @@ void gr_statement() {
       if (symbol == SYM_ASSIGN) {
         getSymbol();
 
-        rtype = gr_expression();
+        rtype = gr_expression(operandInfo);
 
         if (rtype != INT_T)
           typeWarning(INT_T, rtype);
@@ -3108,7 +3775,7 @@ void gr_statement() {
     } else if (symbol == SYM_LPARENTHESIS) {
       getSymbol();
 
-      ltype = gr_expression();
+      ltype = gr_expression(operandInfo);
 
       if (ltype != INTSTAR_T)
         typeWarning(INTSTAR_T, ltype);
@@ -3120,7 +3787,7 @@ void gr_statement() {
         if (symbol == SYM_ASSIGN) {
           getSymbol();
 
-          rtype = gr_expression();
+          rtype = gr_expression(operandInfo);
 
           if (rtype != INT_T)
             typeWarning(INT_T, rtype);
@@ -3140,7 +3807,7 @@ void gr_statement() {
     } else
       syntaxErrorSymbol(SYM_LPARENTHESIS);
   }
-  // identifier "=" expression | call
+  // identifier [ "[" index1 "]" ] [ "[" index2 "]" ] "=" expression | call
   else if (symbol == SYM_IDENTIFIER) {
     variableOrProcedureName = identifier;
 
@@ -3150,10 +3817,74 @@ void gr_statement() {
     if (symbol == SYM_LPARENTHESIS) {
       getSymbol();
 
-      gr_call(variableOrProcedureName);
+      gr_call(variableOrProcedureName, operandInfo);
 
       // reset return register
       emitIFormat(OP_ADDIU, REG_ZR, REG_V0, 0);
+
+      if (symbol == SYM_SEMICOLON)
+        getSymbol();
+      else
+        syntaxErrorSymbol(SYM_SEMICOLON);
+
+    // identifier "[" index1 "]" [ "[" index2 "]" ] = expression
+    } else if (symbol == SYM_LBRACKET) {
+      getSymbol();
+
+      // get array index
+      itype = gr_expression(operandInfo);
+
+      if (itype != INT_T)
+        typeWarning(INT_T, itype);
+
+      if (symbol == SYM_RBRACKET)
+        getSymbol();
+      else
+        syntaxErrorSymbol(SYM_RBRACKET);
+
+      if (symbol == SYM_LBRACKET) {
+        getSymbol();
+
+        // get array index
+        itype = gr_expression(operandInfo);
+
+        if (itype != INT_T)
+          typeWarning(INT_T, itype);
+
+        if (symbol == SYM_RBRACKET)
+          getSymbol();
+        else
+          syntaxErrorSymbol(SYM_RBRACKET);
+
+          entry = getArray(variableOrProcedureName);
+
+          ltype = getType(entry);
+
+          load_from_array(entry, 2);
+
+          getSymbol();
+
+          rtype = gr_expression(operandInfo);
+
+          emitIFormat(OP_SW, previousTemporary(), currentTemporary(),0);
+          tfree(2);
+
+      } else {
+
+        entry = getArray(variableOrProcedureName);
+
+        ltype = getType(entry);
+
+        load_from_array(entry, 1);
+
+        getSymbol();
+
+        rtype = gr_expression(operandInfo);
+
+        emitIFormat(OP_SW, previousTemporary(), currentTemporary(),0);
+        tfree(2);
+
+      }
 
       if (symbol == SYM_SEMICOLON)
         getSymbol();
@@ -3168,7 +3899,7 @@ void gr_statement() {
 
       getSymbol();
 
-      rtype = gr_expression();
+      rtype = gr_expression(operandInfo);
 
       if (ltype != rtype)
         typeWarning(ltype, rtype);
@@ -3186,17 +3917,17 @@ void gr_statement() {
   }
   // while statement?
   else if (symbol == SYM_WHILE) {
-    gr_while();
+    gr_while(operandInfo);
   }
   // if statement?
   else if (symbol == SYM_IF) {
-    gr_if();
+    gr_if(operandInfo);
   }
   // return statement?
   else if (symbol == SYM_RETURN) {
     entry = getSymbolTableEntry(currentProcedureName, PROCEDURE);
 
-    gr_return(getType(entry));
+    gr_return(getType(entry), operandInfo);
 
     if (symbol == SYM_SEMICOLON)
       getSymbol();
@@ -3224,20 +3955,22 @@ int gr_type() {
   return type;
 }
 
-void gr_variable(int offset) {
+int gr_variable(int offset) {
   int type;
 
   type = gr_type();
 
   if (symbol == SYM_IDENTIFIER) {
-    createSymbolTableEntry(LOCAL_TABLE, identifier, lineNumber, VARIABLE, type, 0, offset);
+    createSymbolTableEntry(LOCAL_TABLE, identifier, lineNumber, VARIABLE, type, 0, offset, 0, 0);
 
     getSymbol();
   } else {
     syntaxErrorSymbol(SYM_IDENTIFIER);
 
-    createSymbolTableEntry(LOCAL_TABLE, (int*) "missing variable name", lineNumber, VARIABLE, type, 0, offset);
+    createSymbolTableEntry(LOCAL_TABLE, (int*) "missing variable name", lineNumber, VARIABLE, type, 0, offset, 0, 0);
   }
+
+  return type;
 }
 
 void gr_initialization(int* name, int offset, int type) {
@@ -3313,15 +4046,18 @@ void gr_initialization(int* name, int offset, int type) {
   } else if (type != INT_T)
     typeWarning(type, INT_T);
 
-  createSymbolTableEntry(GLOBAL_TABLE, name, actualLineNumber, VARIABLE, type, initialValue, offset);
+  createSymbolTableEntry(GLOBAL_TABLE, name, actualLineNumber, VARIABLE, type, initialValue, offset, 0, 0);
 }
 
-void gr_procedure(int* procedure, int returnType) {
+void gr_procedure(int *procedure, int returnType, int *operandInfo) {
   int numberOfParameters;
   int parameters;
   int localVariables;
   int functionStart;
-  int* entry;
+  int *entry;
+  int type;
+  int arraySize1;
+  int arraySize2;
 
   currentProcedureName = procedure;
 
@@ -3369,7 +4105,7 @@ void gr_procedure(int* procedure, int returnType) {
     entry = getSymbolTableEntry(currentProcedureName, PROCEDURE);
 
     if (entry == (int*) 0)
-      createSymbolTableEntry(GLOBAL_TABLE, currentProcedureName, lineNumber, PROCEDURE, returnType, 0, 0);
+      createSymbolTableEntry(GLOBAL_TABLE, currentProcedureName, lineNumber, PROCEDURE, returnType, 0, 0, 0, 0);
 
     getSymbol();
 
@@ -3380,7 +4116,7 @@ void gr_procedure(int* procedure, int returnType) {
     entry = getSymbolTableEntry(currentProcedureName, PROCEDURE);
 
     if (entry == (int*) 0)
-      createSymbolTableEntry(GLOBAL_TABLE, currentProcedureName, lineNumber, PROCEDURE, returnType, 0, binaryLength);
+      createSymbolTableEntry(GLOBAL_TABLE, currentProcedureName, lineNumber, PROCEDURE, returnType, 0, binaryLength, 0, 0);
     else {
       if (getAddress(entry) != 0) {
         if (getOpcode(loadBinary(getAddress(entry))) == OP_JAL)
@@ -3407,12 +4143,77 @@ void gr_procedure(int* procedure, int returnType) {
     localVariables = 0;
 
     while (symbol == SYM_INT) {
+
       localVariables = localVariables + 1;
 
-      gr_variable(-localVariables * WORDSIZE);
+      type = gr_variable(-localVariables * WORDSIZE);
 
       if (symbol == SYM_SEMICOLON)
         getSymbol();
+      else if (symbol == SYM_LBRACKET) {
+        getSymbol();
+
+        if (symbol == SYM_INTEGER) {
+          if (literal > 0)
+            arraySize1 = literal;
+          //else
+            // TODO: fire error
+
+          localVariables = localVariables + (arraySize1 - 1);
+          // fix symbolTableEntry
+          entry = getSymbolTableEntry(identifier, VARIABLE);
+          setClass(entry, ARRAY);
+          setAddress(entry, -localVariables * WORDSIZE);
+          setSize1(entry, arraySize1);
+
+        } else
+          syntaxErrorSymbol(SYM_INTEGER);
+
+        getSymbol();
+
+        if (symbol == SYM_RBRACKET) {
+          getSymbol();
+
+          if (symbol == SYM_LBRACKET) {
+            getSymbol();
+
+            if (symbol == SYM_INTEGER) {
+              if (literal > 0)
+                arraySize2 = literal;
+              //else
+                // TODO: fire error
+
+              // fix symbolTableEntry
+              localVariables = localVariables + (arraySize1 - 1) * arraySize2;
+              setAddress(entry, -localVariables * WORDSIZE);
+              setSize2(entry, arraySize2);
+
+            } else
+              syntaxErrorSymbol(SYM_INTEGER);
+
+            getSymbol();
+
+            if (symbol == SYM_RBRACKET) {
+              getSymbol();
+
+              if (symbol == SYM_SEMICOLON) {
+                getSymbol();
+
+              } else
+                syntaxErrorSymbol(SYM_SEMICOLON);
+
+            } else
+              syntaxErrorSymbol(SYM_RBRACKET);
+
+
+          } else if (symbol == SYM_SEMICOLON)
+            getSymbol();
+          else
+            syntaxErrorSymbol(SYM_SEMICOLON);
+        } else
+          syntaxErrorSymbol(SYM_RBRACKET);
+
+      }
       else
         syntaxErrorSymbol(SYM_SEMICOLON);
     }
@@ -3423,7 +4224,7 @@ void gr_procedure(int* procedure, int returnType) {
     returnBranches = 0;
 
     while (isNotRbraceOrEOF())
-      gr_statement();
+      gr_statement(operandInfo);
 
     if (symbol == SYM_RBRACE)
       getSymbol();
@@ -3449,7 +4250,12 @@ void gr_procedure(int* procedure, int returnType) {
 
 void gr_cstar() {
   int type;
-  int* variableOrProcedureName;
+  int *variableOrProcedureName;
+  int *operandInfo;
+  int arraySize1;
+  int arraySize2;
+
+  operandInfo = malloc(2 * SIZEOFINT);
 
   while (symbol != SYM_EOF) {
     while (lookForType()) {
@@ -3472,7 +4278,7 @@ void gr_cstar() {
 
         getSymbol();
 
-        gr_procedure(variableOrProcedureName, type);
+        gr_procedure(variableOrProcedureName, type, operandInfo);
       } else
         syntaxErrorSymbol(SYM_IDENTIFIER);
     } else {
@@ -3485,15 +4291,81 @@ void gr_cstar() {
 
         // type identifier "(" procedure declaration or definition
         if (symbol == SYM_LPARENTHESIS)
-          gr_procedure(variableOrProcedureName, type);
+          gr_procedure(variableOrProcedureName, type, operandInfo);
         else {
+
           allocatedMemory = allocatedMemory + WORDSIZE;
 
           // type identifier ";" global variable declaration
           if (symbol == SYM_SEMICOLON) {
-            createSymbolTableEntry(GLOBAL_TABLE, variableOrProcedureName, lineNumber, VARIABLE, type, 0, -allocatedMemory);
+            createSymbolTableEntry(GLOBAL_TABLE, variableOrProcedureName, lineNumber, VARIABLE, type, 0, -allocatedMemory, 0, 0);
 
             getSymbol();
+
+          // type identifier[size] = array declaration
+          } else if (symbol == SYM_LBRACKET) {
+            // only reserve memory
+            // no array initialization capabilites desired
+            // int identifier[]; => is a regular pointer, look how pointers are doubly-linked
+            // int identifier[10]; => allocate 10 * WORDSIZE
+            // int identifier[] => missing SEMICOLON
+            // int identifier[-1] => invalid
+            // int identifier[0] => invalid
+
+            getSymbol();
+
+            if (symbol == SYM_INTEGER) {
+              if (literal > 0)
+                arraySize1 = literal;
+              //else
+                // TODO: fire error
+            } else
+              syntaxErrorSymbol(SYM_INTEGER);
+
+            getSymbol();
+
+            if (symbol == SYM_RBRACKET) {
+              getSymbol();
+
+              if (symbol == SYM_LBRACKET) {
+                getSymbol();
+
+                if (symbol == SYM_INTEGER) {
+                  if (literal > 0)
+                    arraySize2 = literal;
+                  //else
+                    // TODO: fire error
+                } else
+                  syntaxErrorSymbol(SYM_INTEGER);
+
+                getSymbol();
+
+                if (symbol == SYM_RBRACKET) {
+                  getSymbol();
+
+                  if (symbol == SYM_SEMICOLON) {
+                    allocatedMemory = allocatedMemory + (arraySize1 * arraySize2 - 1) * WORDSIZE;
+
+                    createSymbolTableEntry(GLOBAL_TABLE, variableOrProcedureName, lineNumber, ARRAY, type, 0, -allocatedMemory, arraySize1, arraySize2);
+
+                    getSymbol();
+                  } else
+                    syntaxErrorSymbol(SYM_SEMICOLON);
+
+                } else
+                  syntaxErrorSymbol(SYM_RBRACKET);
+
+              } else if (symbol == SYM_SEMICOLON) {
+                allocatedMemory = allocatedMemory + (arraySize1 - 1) * WORDSIZE;
+
+                createSymbolTableEntry(GLOBAL_TABLE, variableOrProcedureName, lineNumber, ARRAY, type, 0, -allocatedMemory, arraySize1, 1);
+
+                getSymbol();
+
+              } else
+                syntaxErrorSymbol(SYM_SEMICOLON);
+            } else
+              syntaxErrorSymbol(SYM_RBRACKET);
 
           // type identifier "=" global variable definition
           } else
@@ -3534,12 +4406,12 @@ void emitMainEntry() {
   // since we load positive integers < 2^28 which take
   // no more than 8 instructions each, see load_integer
   while (i < 16) {
-    emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_NOP);
+    emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_SLL);
 
     i = i + 1;
   }
 
-  createSymbolTableEntry(GLOBAL_TABLE, (int*) "main", 0, PROCEDURE, INT_T, 0, binaryLength);
+  createSymbolTableEntry(GLOBAL_TABLE, (int*) "main", 0, PROCEDURE, INT_T, 0, binaryLength, 0, 0);
 
   // jump and link to main, will return here only if there is no exit call
   emitJFormat(OP_JAL, 0);
@@ -3685,13 +4557,14 @@ void printRegister(int reg) {
 // |opcode| rs  | rt  | rd  |00000|fction|
 // +------+-----+-----+-----+-----+------+
 //    6      5     5     5     5     6
-int encodeRFormat(int opcode, int rs, int rt, int rd, int function) {
+int encodeRFormat(int opcode, int rs, int rt, int rd, int shamt, int function) {
   // assert: 0 <= opcode < 2^6
   // assert: 0 <= rs < 2^5
   // assert: 0 <= rt < 2^5
   // assert: 0 <= rd < 2^5
+  // assert: 0 <= shamt < 2^5
   // assert: 0 <= function < 2^6
-  return leftShift(leftShift(leftShift(leftShift(opcode, 5) + rs, 5) + rt, 5) + rd, 11) + function;
+  return leftShift(leftShift(leftShift(leftShift(leftShift(opcode, 5) + rs, 5) + rt, 5) + rd, 5) + shamt, 6) + function;
 }
 
 // -----------------------------------------------------------------
@@ -3740,6 +4613,10 @@ int getRT(int instruction) {
 
 int getRD(int instruction) {
   return rightShift(leftShift(instruction, 16), 27);
+}
+
+int getSHAMT(int instruction) {
+    return rightShift(leftShift(instruction, 21), 27);
 }
 
 int getFunction(int instruction) {
@@ -3798,6 +4675,7 @@ void decodeRFormat() {
   rs          = getRS(ir);
   rt          = getRT(ir);
   rd          = getRD(ir);
+  shamt       = getSHAMT(ir);
   immediate   = 0;
   function    = getFunction(ir);
   instr_index = 0;
@@ -3867,19 +4745,19 @@ void emitInstruction(int instruction) {
 }
 
 void emitRFormat(int opcode, int rs, int rt, int rd, int function) {
-  emitInstruction(encodeRFormat(opcode, rs, rt, rd, function));
+  emitInstruction(encodeRFormat(opcode, rs, rt, rd, 0, function));
 
   if (opcode == OP_SPECIAL) {
     if (function == FCT_JR)
-      emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_NOP); // delay slot
+      emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_SLL); // delay slot
     else if (function == FCT_MFLO) {
       // In MIPS I-III two instructions after MFLO/MFHI
       // must not modify the LO/HI registers
-      emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_NOP); // pipeline delay
-      emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_NOP); // pipeline delay
+      emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_SLL); // pipeline delay
+      emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_SLL); // pipeline delay
     } else if (function == FCT_MFHI) {
-      emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_NOP); // pipeline delay
-      emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_NOP); // pipeline delay
+      emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_SLL); // pipeline delay
+      emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_SLL); // pipeline delay
     }
   }
 }
@@ -3888,15 +4766,15 @@ void emitIFormat(int opcode, int rs, int rt, int immediate) {
   emitInstruction(encodeIFormat(opcode, rs, rt, immediate));
 
   if (opcode == OP_BEQ)
-    emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_NOP); // delay slot
+    emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_SLL); // delay slot
   else if (opcode == OP_BNE)
-    emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_NOP); // delay slot
+    emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_SLL); // delay slot
 }
 
 void emitJFormat(int opcode, int instr_index) {
   emitInstruction(encodeJFormat(opcode, instr_index));
 
-  emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_NOP); // delay slot
+  emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_SLL); // delay slot
 }
 
 void fixup_relative(int fromAddress) {
@@ -3959,6 +4837,8 @@ void emitGlobalsStrings() {
       binaryLength = binaryLength + WORDSIZE;
     } else if (getClass(entry) == STRING)
       binaryLength = copyStringToBinary(getString(entry), binaryLength);
+    else if (getClass(entry) == ARRAY)
+      binaryLength =  binaryLength + getSize1(entry) * getSize2(entry) * WORDSIZE;
 
     entry = getNextEntry(entry);
   }
@@ -4102,7 +4982,7 @@ void selfie_load() {
 // -----------------------------------------------------------------
 
 void emitExit() {
-  createSymbolTableEntry(LIBRARY_TABLE, (int*) "exit", 0, PROCEDURE, VOID_T, 0, binaryLength);
+  createSymbolTableEntry(LIBRARY_TABLE, (int*) "exit", 0, PROCEDURE, VOID_T, 0, binaryLength, 0, 0);
 
   // load argument for exit
   emitIFormat(OP_LW, REG_SP, REG_A0, 0); // exit code
@@ -4137,7 +5017,7 @@ void implementExit() {
 }
 
 void emitRead() {
-  createSymbolTableEntry(LIBRARY_TABLE, (int*) "read", 0, PROCEDURE, INT_T, 0, binaryLength);
+  createSymbolTableEntry(LIBRARY_TABLE, (int*) "read", 0, PROCEDURE, INT_T, 0, binaryLength, 0, 0);
 
   emitIFormat(OP_LW, REG_SP, REG_A2, 0); // size
   emitIFormat(OP_ADDIU, REG_SP, REG_SP, WORDSIZE);
@@ -4254,7 +5134,7 @@ void implementRead() {
 }
 
 void emitWrite() {
-  createSymbolTableEntry(LIBRARY_TABLE, (int*) "write", 0, PROCEDURE, INT_T, 0, binaryLength);
+  createSymbolTableEntry(LIBRARY_TABLE, (int*) "write", 0, PROCEDURE, INT_T, 0, binaryLength, 0, 0);
 
   emitIFormat(OP_LW, REG_SP, REG_A2, 0); // size
   emitIFormat(OP_ADDIU, REG_SP, REG_SP, WORDSIZE);
@@ -4370,7 +5250,7 @@ void implementWrite() {
 }
 
 void emitOpen() {
-  createSymbolTableEntry(LIBRARY_TABLE, (int*) "open", 0, PROCEDURE, INT_T, 0, binaryLength);
+  createSymbolTableEntry(LIBRARY_TABLE, (int*) "open", 0, PROCEDURE, INT_T, 0, binaryLength, 0, 0);
 
   emitIFormat(OP_LW, REG_SP, REG_A2, 0); // mode
   emitIFormat(OP_ADDIU, REG_SP, REG_SP, WORDSIZE);
@@ -4476,7 +5356,7 @@ void implementOpen() {
 }
 
 void emitMalloc() {
-  createSymbolTableEntry(LIBRARY_TABLE, (int*) "malloc", 0, PROCEDURE, INTSTAR_T, 0, binaryLength);
+  createSymbolTableEntry(LIBRARY_TABLE, (int*) "malloc", 0, PROCEDURE, INTSTAR_T, 0, binaryLength, 0, 0);
 
   emitIFormat(OP_LW, REG_SP, REG_A0, 0); // size
   emitIFormat(OP_ADDIU, REG_SP, REG_SP, WORDSIZE);
@@ -4526,7 +5406,7 @@ void implementMalloc() {
 // -----------------------------------------------------------------
 
 void emitID() {
-  createSymbolTableEntry(LIBRARY_TABLE, (int*) "hypster_ID", 0, PROCEDURE, INT_T, 0, binaryLength);
+  createSymbolTableEntry(LIBRARY_TABLE, (int*) "hypster_ID", 0, PROCEDURE, INT_T, 0, binaryLength, 0, 0);
 
   emitIFormat(OP_ADDIU, REG_ZR, REG_V0, SYSCALL_ID);
   emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_SYSCALL);
@@ -4552,7 +5432,7 @@ int selfie_ID() {
 }
 
 void emitCreate() {
-  createSymbolTableEntry(LIBRARY_TABLE, (int*) "hypster_create", 0, PROCEDURE, INT_T, 0, binaryLength);
+  createSymbolTableEntry(LIBRARY_TABLE, (int*) "hypster_create", 0, PROCEDURE, INT_T, 0, binaryLength, 0, 0);
 
   emitIFormat(OP_ADDIU, REG_ZR, REG_V0, SYSCALL_CREATE);
   emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_SYSCALL);
@@ -4604,7 +5484,7 @@ int selfie_create() {
 }
 
 void emitSwitch() {
-  createSymbolTableEntry(LIBRARY_TABLE, (int*) "hypster_switch", 0, PROCEDURE, INT_T, 0, binaryLength);
+  createSymbolTableEntry(LIBRARY_TABLE, (int*) "hypster_switch", 0, PROCEDURE, INT_T, 0, binaryLength, 0, 0);
 
   emitIFormat(OP_LW, REG_SP, REG_A0, 0); // ID of context to which we switch
   emitIFormat(OP_ADDIU, REG_SP, REG_SP, WORDSIZE);
@@ -4685,7 +5565,7 @@ int selfie_switch(int toID) {
 }
 
 void emitStatus() {
-  createSymbolTableEntry(LIBRARY_TABLE, (int*) "hypster_status", 0, PROCEDURE, INT_T, 0, binaryLength);
+  createSymbolTableEntry(LIBRARY_TABLE, (int*) "hypster_status", 0, PROCEDURE, INT_T, 0, binaryLength, 0, 0);
 
   emitIFormat(OP_ADDIU, REG_ZR, REG_V0, SYSCALL_STATUS);
   emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_SYSCALL);
@@ -4728,7 +5608,7 @@ int selfie_status() {
 }
 
 void emitDelete() {
-  createSymbolTableEntry(LIBRARY_TABLE, (int*) "hypster_delete", 0, PROCEDURE, VOID_T, 0, binaryLength);
+  createSymbolTableEntry(LIBRARY_TABLE, (int*) "hypster_delete", 0, PROCEDURE, VOID_T, 0, binaryLength, 0, 0);
 
   emitIFormat(OP_LW, REG_SP, REG_A0, 0); // context ID
   emitIFormat(OP_ADDIU, REG_SP, REG_SP, WORDSIZE);
@@ -4780,7 +5660,7 @@ void selfie_delete(int ID) {
 }
 
 void emitMap() {
-  createSymbolTableEntry(LIBRARY_TABLE, (int*) "hypster_map", 0, PROCEDURE, VOID_T, 0, binaryLength);
+  createSymbolTableEntry(LIBRARY_TABLE, (int*) "hypster_map", 0, PROCEDURE, VOID_T, 0, binaryLength, 0, 0);
 
   emitIFormat(OP_LW, REG_SP, REG_A2, 0); // frame
   emitIFormat(OP_ADDIU, REG_SP, REG_SP, WORDSIZE);
@@ -5617,6 +6497,195 @@ void op_sw() {
   }
 }
 
+void fct_sll() {
+    if (debug) {
+        printFunction(function);
+        print((int*) " ");
+        if (*(registers+shamt) == 0) {
+            print((int*) "(nop)");
+        }
+        else {
+            printRegister(rd);
+            print((int*) ",");
+            printRegister(rs);
+            print((int*) ",");
+            printRegister(rt);
+            print((int*) ",");
+            printRegister(shamt);
+            if (interpret) {
+                print((int*) ": ");
+                printRegister(rd);
+                print((int*) "=");
+                print(itoa(*(registers+rd), string_buffer, 10, 0, 0));
+                print((int*) ",");
+                printRegister(rs);
+                print((int*) "=");
+                print(itoa(*(registers+rs), string_buffer, 10, 0, 0));
+                print((int*) ",");
+                printRegister(rt);
+                print((int*) "=");
+                print(itoa(*(registers+rt), string_buffer, 10, 0, 0));
+                print((int*) ",");
+                printRegister(shamt);
+                print((int*) "=");
+                print(itoa(*(registers+shamt), string_buffer, 10, 0, 0));
+            }
+        }
+    }
+
+    if (interpret) {
+        if (*(registers+shamt) != 0) {
+            *(registers+rd) = leftShift(*(registers+rt), shamt);
+        }
+
+        pc = pc + WORDSIZE;
+    }
+
+    if (debug) {
+        if (*(registers+shamt) != 0) {
+            if (interpret) {
+                print((int*) " -> ");
+                printRegister(rd);
+                print((int*) "=");
+                print(itoa(*(registers+rd), string_buffer, 10, 0, 0));
+            }
+        }
+        println();
+    }
+}
+
+void fct_srl() {
+    if (debug) {
+        printFunction(function);
+        print((int*) " ");
+        printRegister(rd);
+        print((int*) ",");
+        printRegister(rs);
+        print((int*) ",");
+        printRegister(rt);
+        print((int*) ",");
+        printRegister(shamt);
+        if (interpret) {
+            print((int*) ": ");
+            printRegister(rd);
+            print((int*) "=");
+            print(itoa(*(registers+rd), string_buffer, 10, 0, 0));
+            print((int*) ",");
+            printRegister(rs);
+            print((int*) "=");
+            print(itoa(*(registers+rs), string_buffer, 10, 0, 0));
+            print((int*) ",");
+            printRegister(rt);
+            print((int*) "=");
+            print(itoa(*(registers+rt), string_buffer, 10, 0, 0));
+            print((int*) ",");
+            printRegister(shamt);
+            print((int*) "=");
+            print(itoa(*(registers+shamt), string_buffer, 10, 0, 0));
+        }
+    }
+
+    if (interpret) {
+        *(registers+rd) = rightShift(*(registers+rt), shamt);
+
+        pc = pc + WORDSIZE;
+    }
+
+    if (debug) {
+        if (interpret) {
+            print((int*) " -> ");
+            printRegister(rd);
+            print((int*) "=");
+            print(itoa(*(registers+rd), string_buffer, 10, 0, 0));
+        }
+        println();
+    }
+}
+
+void fct_sllv() {
+    if (debug) {
+        printFunction(function);
+        print((int*) " ");
+        printRegister(rd);
+        print((int*) ",");
+        printRegister(rs);
+        print((int*) ",");
+        printRegister(rt);
+        if (interpret) {
+            print((int*) ": ");
+            printRegister(rd);
+            print((int*) "=");
+            print(itoa(*(registers+rd), string_buffer, 10, 0, 0));
+            print((int*) ",");
+            printRegister(rs);
+            print((int*) "=");
+            print(itoa(*(registers+rs), string_buffer, 10, 0, 0));
+            print((int*) ",");
+            printRegister(rt);
+            print((int*) "=");
+            print(itoa(*(registers+rt), string_buffer, 10, 0, 0));
+        }
+    }
+
+    if (interpret) {
+        *(registers+rd) = leftShift(*(registers+rt), *(registers+rs));
+
+        pc = pc + WORDSIZE;
+    }
+
+    if (debug) {
+        if (interpret) {
+            print((int*) " -> ");
+            printRegister(rd);
+            print((int*) "=");
+            print(itoa(*(registers+rd), string_buffer, 10, 0, 0));
+        }
+        println();
+    }
+}
+
+void fct_srlv() {
+    if (debug) {
+        printFunction(function);
+        print((int*) " ");
+        printRegister(rd);
+        print((int*) ",");
+        printRegister(rs);
+        print((int*) ",");
+        printRegister(rt);
+        if (interpret) {
+            print((int*) ": ");
+            printRegister(rd);
+            print((int*) "=");
+            print(itoa(*(registers+rd), string_buffer, 10, 0, 0));
+            print((int*) ",");
+            printRegister(rs);
+            print((int*) "=");
+            print(itoa(*(registers+rs), string_buffer, 10, 0, 0));
+            print((int*) ",");
+            printRegister(rt);
+            print((int*) "=");
+            print(itoa(*(registers+rt), string_buffer, 10, 0, 0));
+        }
+    }
+
+    if (interpret) {
+        *(registers+rd) = rightShift(*(registers+rt), *(registers+rs));
+
+        pc = pc + WORDSIZE;
+    }
+
+    if (debug) {
+        if (interpret) {
+            print((int*) " -> ");
+            printRegister(rd);
+            print((int*) "=");
+            print(itoa(*(registers+rd), string_buffer, 10, 0, 0));
+        }
+        println();
+    }
+}
+
 // -----------------------------------------------------------------
 // -------------------------- INTERPRETER --------------------------
 // -----------------------------------------------------------------
@@ -5704,8 +6773,14 @@ void execute() {
   }
 
   if (opcode == OP_SPECIAL) {
-    if (function == FCT_NOP)
-      fct_nop();
+    if (function == FCT_SLL)
+      fct_sll();
+    else if (function == FCT_SRL)
+      fct_srl();
+    else if (function == FCT_SLLV)
+      fct_sllv();
+    else if (function == FCT_SRLV)
+      fct_srlv();
     else if (function == FCT_ADDU)
       fct_addu();
     else if (function == FCT_SUBU)
@@ -6304,6 +7379,7 @@ int selfie(int argc, int* argv) {
         argv = argv + 2;
 
         selfie_compile();
+        printSymbols();
       } else if (stringCompare((int*) *argv, (int*) "-o")) {
         binaryName = (int*) *(argv+1);
 
@@ -6428,6 +7504,9 @@ int main(int argc, int* argv) {
   initDecoder();
 
   initInterpreter();
+
+  print((int*) "This is the c-star-fox Selfie");
+  println();
 
   selfieName = (int*) *argv;
 

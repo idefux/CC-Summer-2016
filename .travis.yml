@@ -10,7 +10,7 @@ addons:
   apt:
     packages:
     - gcc-multilib
-script: make test
+script: make test && make test_arrays
 notifications:
   email: false
   slack:
