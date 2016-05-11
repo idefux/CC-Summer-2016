@@ -2309,6 +2309,16 @@ int previousTemporary() {
   }
 }
 
+int previousPreviousTemporary() {
+  if (allocatedTemporaries > 2)
+    return currentTemporary() - 2;
+  else {
+    syntaxErrorMessage((int*) "illegal register access");
+
+    exit(-1);
+  }
+}
+
 int nextTemporary() {
   if (allocatedTemporaries < REG_T7 - REG_A3)
     return currentTemporary() + 1;
@@ -2516,23 +2526,31 @@ void load_string(int* string) {
   emitIFormat(OP_ADDIU, REG_GP, currentTemporary(), -allocatedMemory);
 }
 
-void load_from_array(int* entry) {
+void load_from_array(int* entry, int dimensions) {
+
+  if (dimensions == 2) {
+    // sizeof(dimension2) * previousTemporary
+    talloc();
+    emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), getSize2(entry));
+    emitRFormat(OP_SPECIAL, currentTemporary(), previousPreviousTemporary(), 0, FCT_MULTU);
+    emitRFormat(OP_SPECIAL, 0, 0, previousPreviousTemporary(), FCT_MFLO);
+    tfree(1);
+
+    emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_ADDU);
+    tfree(1);
+  }
+
   talloc();
   if (getType(entry) == INT_T)
     emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), SIZEOFINT);
   else if (getType(entry) == INTSTAR_T)
     emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), SIZEOFINTSTAR);
 
-  // assert: allocatedTemporaries == n + 2
-
   emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), 0, FCT_MULTU);
   emitRFormat(OP_SPECIAL, 0, 0, previousTemporary(), FCT_MFLO);
   tfree(1);
 
-  // assert: allocatedTemporaries == n + 1
-
   // load address of first array element.
-
   if (getClass(entry) == ARRAY) {
 
     talloc();
@@ -2761,7 +2779,6 @@ int gr_factor(int *operandInfo) {
 
   int *variableOrProcedureName;
 
-  int arrayIndex;
   int itype;
 
   unsetConstant(operandInfo);
@@ -2873,22 +2890,44 @@ int gr_factor(int *operandInfo) {
       if (itype != INT_T)
         typeWarning(INT_T, itype);
 
-      // assert: allocatedTemporaries == n + 1
-
-      entry = getArray(variableOrProcedureName);
-
-      load_from_array(entry);
-
-      //emitIFormat(OP_SW, previousTemporary(), currentTemporary(),0);
-      emitIFormat(OP_LW, currentTemporary(), currentTemporary(), 0);
-
-      //tfree(1);
-
-      // assert: allocatedTemporaries == n + 1
-
-      if (symbol == SYM_RBRACKET)
+      if (symbol == SYM_RBRACKET) {
         getSymbol();
-      else
+
+        if (symbol == SYM_LBRACKET) {
+
+          itype = gr_expression(operandInfo);
+
+          if (itype != INT_T)
+            typeWarning(INT_T, itype);
+
+          if (symbol == RBRACKET) {
+
+            // Load from array 2 dim
+            entry = getArray(variableOrProcedureName);
+
+            load_from_array(entry, 2);
+
+            //emitIFormat(OP_SW, previousTemporary(), currentTemporary(),0);
+            emitIFormat(OP_LW, currentTemporary(), currentTemporary(), 0);
+
+          } else
+            syntaxErrorSymbol(RBRACKET);
+
+        } else {
+          // assert: allocatedTemporaries == n + 1
+
+          entry = getArray(variableOrProcedureName);
+
+          load_from_array(entry, 1);
+
+          //emitIFormat(OP_SW, previousTemporary(), currentTemporary(),0);
+          emitIFormat(OP_LW, currentTemporary(), currentTemporary(), 0);
+
+          //tfree(1);
+
+          // assert: allocatedTemporaries == n + 1
+        }
+      } else
         syntaxErrorSymbol(SYM_RBRACKET);
 
     } else
@@ -3680,7 +3719,6 @@ void gr_statement(int *operandInfo) {
   int rtype;
   int *variableOrProcedureName;
   int *entry;
-  int arrayIndex;
   int itype;
 
   // assert: allocatedTemporaries == 0;
@@ -3799,7 +3837,7 @@ void gr_statement(int *operandInfo) {
 
       ltype = getType(entry);
 
-      load_from_array(entry);
+      load_from_array(entry, 1);
 
       getSymbol();
 
