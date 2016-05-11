@@ -3805,7 +3805,7 @@ void gr_statement(int *operandInfo) {
     } else
       syntaxErrorSymbol(SYM_LPARENTHESIS);
   }
-  // identifier [ index ] "=" expression | call
+  // identifier [ "[" index1 "]" ] [ "[" index2 "]" ] "=" expression | call
   else if (symbol == SYM_IDENTIFIER) {
     variableOrProcedureName = identifier;
 
@@ -3832,29 +3832,69 @@ void gr_statement(int *operandInfo) {
       // get array index
       itype = gr_expression(operandInfo);
 
+      if (itype != INT_T)
+        typeWarning(INT_T, itype);
+
       if (symbol == SYM_RBRACKET)
         getSymbol();
       else
         syntaxErrorSymbol(SYM_RBRACKET);
 
-      entry = getArray(variableOrProcedureName);
+      if (symbol == SYM_LBRACKET) {
+        getSymbol();
 
-      ltype = getType(entry);
+        // get array index
+        itype = gr_expression(operandInfo);
 
-      load_from_array(entry, 1);
+        if (itype != INT_T)
+          typeWarning(INT_T, itype);
 
-      getSymbol();
+        if (symbol == SYM_RBRACKET)
+          getSymbol();
+        else
+          syntaxErrorSymbol(SYM_RBRACKET);
 
-      rtype = gr_expression(operandInfo);
+          entry = getArray(variableOrProcedureName);
 
-      if (ltype != rtype)
-        typeWarning(ltype, rtype);
+          ltype = getType(entry);
 
-      // previousTemporary = address to store to
-      // currentTemporary = value to store
+          load_from_array(entry, 2);
 
-      emitIFormat(OP_SW, previousTemporary(), currentTemporary(),0);
-      tfree(2);
+          getSymbol();
+
+          rtype = gr_expression(operandInfo);
+
+          if (ltype != rtype)
+            typeWarning(ltype, rtype);
+
+          // previousTemporary = address to store to
+          // currentTemporary = value to store
+
+          emitIFormat(OP_SW, previousTemporary(), currentTemporary(),0);
+          tfree(2);
+
+      } else {
+
+        entry = getArray(variableOrProcedureName);
+
+        ltype = getType(entry);
+
+        load_from_array(entry, 1);
+
+        getSymbol();
+
+        rtype = gr_expression(operandInfo);
+
+        if (ltype != rtype)
+          typeWarning(ltype, rtype);
+
+        // previousTemporary = address to store to
+        // currentTemporary = value to store
+
+        emitIFormat(OP_SW, previousTemporary(), currentTemporary(),0);
+        tfree(2);
+
+      }
 
       if (symbol == SYM_SEMICOLON)
         getSymbol();
