@@ -64,6 +64,8 @@ test_arrays: selfie
 	./selfie -c test/array_access_expression.c -d 1 | grep -E 'exit code 209'
 	./selfie -c test/array_heap.c -d 1 | grep -E 'exit code 73'
 	./selfie -c test/array_pointer_arithmetic.c -d 1 | grep -E 'exit code 91'
+	./selfie -c test/array_2d_local_vars.c -d 1 | grep -E 'exit code 68'
+	./selfie -c test/array_2d_global_vars.c -d 1 | grep -E 'exit code 12'
 
 # Clean up
 clean:

@@ -2894,13 +2894,14 @@ int gr_factor(int *operandInfo) {
         getSymbol();
 
         if (symbol == SYM_LBRACKET) {
+          getSymbol();
 
           itype = gr_expression(operandInfo);
 
           if (itype != INT_T)
             typeWarning(INT_T, itype);
 
-          if (symbol == RBRACKET) {
+          if (symbol == SYM_RBRACKET) {
 
             // Load from array 2 dim
             entry = getArray(variableOrProcedureName);
@@ -2910,8 +2911,11 @@ int gr_factor(int *operandInfo) {
             //emitIFormat(OP_SW, previousTemporary(), currentTemporary(),0);
             emitIFormat(OP_LW, currentTemporary(), currentTemporary(), 0);
 
+            getSymbol();
+
           } else
-            syntaxErrorSymbol(RBRACKET);
+            syntaxErrorSymbol(SYM_RBRACKET);
+
 
         } else {
           // assert: allocatedTemporaries == n + 1
