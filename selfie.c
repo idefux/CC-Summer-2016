@@ -249,7 +249,11 @@ int identifierOrKeyword();
 
 int getSymbol();
 
+void printSymbols();
+
 // ------------------------ GLOBAL CONSTANTS -----------------------
+
+int NUMBEROFSYMBOLS  = 32;
 
 int SYM_EOF          = -1; // end of file
 int SYM_IDENTIFIER   = 0;  // identifier
@@ -285,7 +289,7 @@ int SYM_SHIFTRIGHT   = 29; // >>
 int SYM_LBRACKET     = 30; // [
 int SYM_RBRACKET     = 31; // ]
 
-int SYMBOLS[32]; // array of strings representing symbols
+int SYMBOLS[32][2]; // array of strings representing symbols
 
 int maxIdentifierLength = 64; // maximum number of characters in an identifier
 int maxIntegerLength    = 10; // maximum number of characters in an integer
@@ -316,39 +320,45 @@ int  sourceFD   = 0;        // file descriptor of open source file
 
 void initScanner () {
   //SYMBOLS = malloc(32 * SIZEOFINTSTAR);
+  int i;
+  i = 0;
+  while (i < NUMBEROFSYMBOLS) {
+    SYMBOLS[i][1] = 0;
+    i = i + 1;
+  }
 
-  SYMBOLS[SYM_IDENTIFIER]   = (int) "identifier";
-  SYMBOLS[SYM_INTEGER]      = (int) "integer";
-  SYMBOLS[SYM_VOID]         = (int) "void";
-  SYMBOLS[SYM_INT]          = (int) "int";
-  SYMBOLS[SYM_SEMICOLON]    = (int) ";";
-  SYMBOLS[SYM_IF]           = (int) "if";
-  SYMBOLS[SYM_ELSE]         = (int) "else";
-  SYMBOLS[SYM_PLUS]         = (int) "+";
-  SYMBOLS[SYM_MINUS]        = (int) "-";
-  SYMBOLS[SYM_ASTERISK]     = (int) "*";
-  SYMBOLS[SYM_DIV]          = (int) "/";
-  SYMBOLS[SYM_EQUALITY]     = (int) "==";
-  SYMBOLS[SYM_ASSIGN]       = (int) "=";
-  SYMBOLS[SYM_LPARENTHESIS] = (int) "(";
-  SYMBOLS[SYM_RPARENTHESIS] = (int) ")";
-  SYMBOLS[SYM_LBRACE]       = (int) "{";
-  SYMBOLS[SYM_RBRACE]       = (int) "}";
-  SYMBOLS[SYM_WHILE]        = (int) "while";
-  SYMBOLS[SYM_RETURN]       = (int) "return";
-  SYMBOLS[SYM_COMMA]        = (int) ",";
-  SYMBOLS[SYM_LT]           = (int) "<";
-  SYMBOLS[SYM_LEQ]          = (int) "<=";
-  SYMBOLS[SYM_GT]           = (int) ">";
-  SYMBOLS[SYM_GEQ]          = (int) ">=";
-  SYMBOLS[SYM_NOTEQ]        = (int) "!=";
-  SYMBOLS[SYM_MOD]          = (int) "%";
-  SYMBOLS[SYM_CHARACTER]    = (int) "character";
-  SYMBOLS[SYM_STRING]       = (int) "string";
-  SYMBOLS[SYM_SHIFTLEFT]    = (int) "<<";
-  SYMBOLS[SYM_SHIFTRIGHT]   = (int) ">>";
-  SYMBOLS[SYM_LBRACKET]     = (int) "[";
-  SYMBOLS[SYM_RBRACKET]     = (int) "]";
+  SYMBOLS[SYM_IDENTIFIER][0]   = (int) "identifier";
+  SYMBOLS[SYM_INTEGER][0]      = (int) "integer";
+  SYMBOLS[SYM_VOID][0]         = (int) "void";
+  SYMBOLS[SYM_INT][0]          = (int) "int";
+  SYMBOLS[SYM_SEMICOLON][0]    = (int) ";";
+  SYMBOLS[SYM_IF][0]           = (int) "if";
+  SYMBOLS[SYM_ELSE][0]         = (int) "else";
+  SYMBOLS[SYM_PLUS][0]         = (int) "+";
+  SYMBOLS[SYM_MINUS][0]        = (int) "-";
+  SYMBOLS[SYM_ASTERISK][0]     = (int) "*";
+  SYMBOLS[SYM_DIV][0]          = (int) "/";
+  SYMBOLS[SYM_EQUALITY][0]     = (int) "==";
+  SYMBOLS[SYM_ASSIGN][0]       = (int) "=";
+  SYMBOLS[SYM_LPARENTHESIS][0] = (int) "(";
+  SYMBOLS[SYM_RPARENTHESIS][0] = (int) ")";
+  SYMBOLS[SYM_LBRACE][0]       = (int) "{";
+  SYMBOLS[SYM_RBRACE][0]       = (int) "}";
+  SYMBOLS[SYM_WHILE][0]        = (int) "while";
+  SYMBOLS[SYM_RETURN][0]       = (int) "return";
+  SYMBOLS[SYM_COMMA][0]        = (int) ",";
+  SYMBOLS[SYM_LT][0]           = (int) "<";
+  SYMBOLS[SYM_LEQ][0]          = (int) "<=";
+  SYMBOLS[SYM_GT][0]           = (int) ">";
+  SYMBOLS[SYM_GEQ][0]          = (int) ">=";
+  SYMBOLS[SYM_NOTEQ][0]        = (int) "!=";
+  SYMBOLS[SYM_MOD][0]          = (int) "%";
+  SYMBOLS[SYM_CHARACTER][0]    = (int) "character";
+  SYMBOLS[SYM_STRING][0]       = (int) "string";
+  SYMBOLS[SYM_SHIFTLEFT][0]    = (int) "<<";
+  SYMBOLS[SYM_SHIFTRIGHT][0]   = (int) ">>";
+  SYMBOLS[SYM_LBRACKET][0]     = (int) "[";
+  SYMBOLS[SYM_RBRACKET][0]     = (int) "]";
 
   character = CHAR_EOF;
   symbol    = SYM_EOF;
@@ -1582,7 +1592,7 @@ void printSymbol(int symbol) {
   if (symbol == SYM_EOF)
     print((int*) "end of file");
   else
-    print((int*) SYMBOLS[symbol]);
+    print((int*) SYMBOLS[symbol][0]);
 
   putCharacter(CHAR_DOUBLEQUOTE);
 }
@@ -1742,7 +1752,7 @@ int isNotDoubleQuoteOrEOF() {
 }
 
 int identifierStringMatch(int keyword) {
-  return stringCompare(identifier, (int*) SYMBOLS[keyword]);
+  return stringCompare(identifier, (int*) SYMBOLS[keyword][0]);
 }
 
 int identifierOrKeyword() {
@@ -1769,10 +1779,11 @@ int getSymbol() {
 
     if (findNextCharacter() == CHAR_EOF)
         return SYM_EOF;
-    else if (symbol == SYM_DIV)
+    else if (symbol == SYM_DIV) {
         // check here because / was recognized instead of //
+        SYMBOLS[SYM_DIV][1] = SYMBOLS[SYM_DIV][1] + 1;
         return SYM_DIV;
-
+    }
     if (isCharacterLetter()) {
         identifier = malloc(maxIdentifierLength + 1);
 
@@ -2013,7 +2024,27 @@ int getSymbol() {
         exit(-1);
     }
 
+    SYMBOLS[symbol][1] = SYMBOLS[symbol][1] + 1;
     return symbol;
+}
+
+void printSymbols() {
+  int i;
+  i = 0;
+
+  print((int*) "Occurences of symbols:");
+  println();
+
+  while (i < NUMBEROFSYMBOLS) {
+    putCharacter(CHAR_DOUBLEQUOTE);
+    print(SYMBOLS[i][0]);
+    putCharacter(CHAR_DOUBLEQUOTE);
+    print((int*) ": ");
+    print(itoa(SYMBOLS[i][1], string_buffer, 10, 0, 0));
+    println();
+    i = i + 1;
+  }
+
 }
 
 // -----------------------------------------------------------------
@@ -7348,6 +7379,7 @@ int selfie(int argc, int* argv) {
         argv = argv + 2;
 
         selfie_compile();
+        printSymbols();
       } else if (stringCompare((int*) *argv, (int*) "-o")) {
         binaryName = (int*) *(argv+1);
 
