@@ -117,8 +117,6 @@ void exit(int code);
 int and(int a, int b);
 int not(int a);
 
-int* my_malloc(int size);
-
 // ------------------------ GLOBAL CONSTANTS -----------------------
 
 int CHAR_EOF          = -1; // end of file
@@ -179,8 +177,6 @@ int S_IRUSR_IWUSR_IRGRP_IROTH = 420; // flags for rw-r--r-- file permissions
 
 int* outputName = (int*) 0;
 int  outputFD   = 1;
-
-int my_malloc_counter = 0;
 
 // ------------------------- INITIALIZATION ------------------------
 
@@ -1570,18 +1566,6 @@ int not(int a) {
     return 1;
 }
 
-int* my_malloc(int size) {
-    int *memory;
-
-    memory = malloc(size);
-    print(itoa(my_malloc_counter, string_buffer, 10, 0, 0));
-    print((int*)": Allocated memory at: ");
-    print(itoa(memory, string_buffer, 16, 0, 0));
-    println();
-    my_malloc_counter = my_malloc_counter + 1;
-    return memory;
-}
-
 // *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~
 // -----------------------------------------------------------------
 // ---------------------    C O M P I L E R    ---------------------
@@ -2557,19 +2541,11 @@ void load_from_array(int* entry, int dimensions) {
     //address here is just offset from scope pointer ($gp or $fp)
     emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), getAddress(entry));
 
-    // decrease address of first element by array index * size of type => address of desired element
-    // address here still means offset from scope pointer
-    // new approach: bottom up layout of array memory
-    // emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_SUBU);
+    // increase address of first element by array index * size of type => address of desired element
     emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_ADDU);
     tfree(1);
 
-    // assert: allocatedTemporaries == n + 1
-
     // get scope pointer and add address offset to it e.g. $fp + address offset
-    // address offset is negative, so this will in effect lead to $fp - address offset*
-    // whis will only work for memory allocated on stack or in global vars and not for the heap! Stefan TODO
-    // new approach: bottom up layout of array memory
     emitRFormat(OP_SPECIAL, getScope(entry), currentTemporary(), currentTemporary(), FCT_ADDU);
 
   } else if (getClass(entry) == VARIABLE) {
@@ -2582,12 +2558,7 @@ void load_from_array(int* entry, int dimensions) {
     // Now add index offset to address
     emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_ADDU);
     tfree(1);
-
-    //emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), getAddress(entry));
-
   }
-  //emitIFormat(OP_SW, previousTemporary(), currentTemporary(),0);
-  //emitIFormat(OP_LW, currentTemporary(), currentTemporary(), 0);
 }
 
 int help_call_codegen(int* entry, int* procedure) {
@@ -3825,7 +3796,7 @@ void gr_statement(int *operandInfo) {
       else
         syntaxErrorSymbol(SYM_SEMICOLON);
 
-    // identifier[index] = expression
+    // identifier "[" index1 "]" [ "[" index2 "]" ] = expression
     } else if (symbol == SYM_LBRACKET) {
       getSymbol();
 
@@ -3864,12 +3835,6 @@ void gr_statement(int *operandInfo) {
 
           rtype = gr_expression(operandInfo);
 
-          if (ltype != rtype)
-            typeWarning(ltype, rtype);
-
-          // previousTemporary = address to store to
-          // currentTemporary = value to store
-
           emitIFormat(OP_SW, previousTemporary(), currentTemporary(),0);
           tfree(2);
 
@@ -3884,12 +3849,6 @@ void gr_statement(int *operandInfo) {
         getSymbol();
 
         rtype = gr_expression(operandInfo);
-
-        if (ltype != rtype)
-          typeWarning(ltype, rtype);
-
-        // previousTemporary = address to store to
-        // currentTemporary = value to store
 
         emitIFormat(OP_SW, previousTemporary(), currentTemporary(),0);
         tfree(2);
@@ -4167,11 +4126,10 @@ void gr_procedure(int *procedure, int returnType, int *operandInfo) {
           if (literal > 0)
             arraySize1 = literal;
           //else
-            // Stefan TODO: Fire syntaxError
+            // TODO: fire error
 
           localVariables = localVariables + (arraySize1 - 1);
-          // The entry is twice in the symobl table. First as variable and second as array
-          // createSymbolTableEntry(LOCAL_TABLE, identifier, lineNumber, ARRAY, type, 0, -localVariables * WORDSIZE, literal);
+          // fix symbolTableEntry
           entry = getSymbolTableEntry(identifier, VARIABLE);
           setClass(entry, ARRAY);
           setAddress(entry, -localVariables * WORDSIZE);
@@ -4192,10 +4150,13 @@ void gr_procedure(int *procedure, int returnType, int *operandInfo) {
               if (literal > 0)
                 arraySize2 = literal;
               //else
-                // Stefan TODO: Fire syntaxError
+                // TODO: fire error
+
+              // fix symbolTableEntry
               localVariables = localVariables + (arraySize1 - 1) * arraySize2;
               setAddress(entry, -localVariables * WORDSIZE);
               setSize2(entry, arraySize2);
+
             } else
               syntaxErrorSymbol(SYM_INTEGER);
 
@@ -4326,7 +4287,7 @@ void gr_cstar() {
               if (literal > 0)
                 arraySize1 = literal;
               //else
-                // Stefan TODO: Fire syntaxError
+                // TODO: fire error
             } else
               syntaxErrorSymbol(SYM_INTEGER);
 
@@ -4342,7 +4303,7 @@ void gr_cstar() {
                   if (literal > 0)
                     arraySize2 = literal;
                   //else
-                    // Stefan TODO: Fire syntaxError
+                    // TODO: fire error
                 } else
                   syntaxErrorSymbol(SYM_INTEGER);
 
