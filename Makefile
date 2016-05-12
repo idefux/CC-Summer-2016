@@ -50,6 +50,8 @@ test_constant_folding: selfie
 	!(./selfie -c test_constant_folding_6.tmp -d 1 | grep -E 't[0-7]=10\s|t[0-7]=8\s|t[0-7]=2\s')
 	./selfie -c test_constant_folding_6.tmp -d 1 | grep -E 'exit code 89'
 	rm -f test_constant_folding_6.tmp
+	!(./selfie -c test/constant_folding_comparison.c -d 1 | grep -E 't[0-7]=5\s')
+	./selfie -c test/constant_folding_comparison.c -d 1 | grep -E 'exit code 1'
 
 # Test array functionality
 test_arrays: selfie
