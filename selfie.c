@@ -438,6 +438,10 @@ int GLOBAL_TABLE  = 1;
 int LOCAL_TABLE   = 2;
 int LIBRARY_TABLE = 3;
 
+// Operand order
+int KEEP_OPERAND_ORDER = 0;
+int SWITCH_OPERAND_ORDER = 1;
+
 // ------------------------ GLOBAL VARIABLES -----------------------
 
 // table pointers
@@ -3075,6 +3079,57 @@ int gr_term(int *operandInfo) {
   return ltype;
 }
 
+int emit_simpleExpression(int ltype, int rtype, int operatorSymbol, int operandOrder) {
+  if (operatorSymbol == SYM_PLUS) {
+    if (ltype == INTSTAR_T) {
+      if (rtype == INT_T)
+        // pointer arithmetic: factor of 2^2 of integer operand
+        emitLeftShiftBy(2);
+      } else if (rtype == INTSTAR_T)
+        typeWarning(ltype, rtype);
+
+      emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_ADDU);
+
+  } else if (operatorSymbol == SYM_MINUS) {
+    if (ltype != rtype)
+      typeWarning(ltype, rtype);
+
+    if (operandOrder == SWITCH_OPERAND_ORDER)
+      emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_SUBU);
+    else
+      emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SUBU);
+  }
+  tfree(1);
+
+  return ltype;
+}
+
+int fold_simpleExpression(int lValue, int rValue, int ltype, int rtype, int operatorSymbol, int* operandInfo) {
+  if (operatorSymbol == SYM_PLUS) {
+    if (ltype == INTSTAR_T) {
+      if (rtype == INT_T)
+        // pointer arithmetic: factor of 2^2 of integer operand
+        rValue = rValue << 2;
+    } else if (rtype == INTSTAR_T)
+      typeWarning(ltype, rtype);
+
+      lValue = lValue + rValue;
+
+  } else if (operatorSymbol == SYM_MINUS) {
+    if (ltype != rtype)
+      typeWarning(ltype, rtype);
+
+    lValue = lValue - rValue;
+
+  }
+
+  // reset as constant value
+  setConstant(operandInfo);
+  setOperandsValue(operandInfo, lValue);
+
+  return ltype;
+}
+
 int gr_simpleExpression(int *operandInfo) {
   int sign;
   int ltype;
@@ -3087,12 +3142,9 @@ int gr_simpleExpression(int *operandInfo) {
   int operationPending;
   int prevType;
   int prevOperatorSymbol;
-  int emitInstruction;
-  int switchOperands;
 
   // clean start, no operation pending
   operationPending = 0;
-  switchOperands = 0;
 
   // assert: n = allocatedTemporaries
 
@@ -3120,9 +3172,6 @@ int gr_simpleExpression(int *operandInfo) {
 
   ltype = gr_term(operandInfo);
 
-  lIsConstant = isConstant(operandInfo);
-  lValue = getOperandsValue(operandInfo);
-
   // assert: allocatedTemporaries == n + 1
 
   if (sign) {
@@ -3132,16 +3181,20 @@ int gr_simpleExpression(int *operandInfo) {
       ltype = INT_T;
     }
 
-    if (lIsConstant) {
+    if (isConstant(operandInfo)) {
+      lValue = getOperandsValue(operandInfo);
       lValue = -lValue;
       setOperandsValue(operandInfo, lValue);
     } else
-       emitRFormat(OP_SPECIAL, REG_ZR, currentTemporary(), currentTemporary(), FCT_SUBU);
+      emitRFormat(OP_SPECIAL, REG_ZR, currentTemporary(), currentTemporary(), FCT_SUBU);
   }
 
   // + or -?
   while (isPlusOrMinus()) {
     operatorSymbol = symbol;
+
+    lIsConstant = isConstant(operandInfo);
+    lValue = getOperandsValue(operandInfo);
 
     getSymbol();
 
@@ -3156,89 +3209,39 @@ int gr_simpleExpression(int *operandInfo) {
     // cannot fold, load constant value, emit pending operation
     // and emit current operation
     if (and(operationPending, not(rIsConstant))) {
-
-      unsetConstant(operandInfo);
-
       // load previous value n-1, this is stored in lValue
       delayedLoading(lIsConstant, lValue, 0, 0);
 
       // emit operation for n-2 OP n-1
-      if (prevOperatorSymbol == SYM_PLUS) {
-        if (prevType == INTSTAR_T) {
-          if (ltype == INT_T)
-            // pointer arithmetic: factor of 2^2 of integer operand
-            emitLeftShiftBy(2);
-          } else if (ltype == INTSTAR_T)
-            typeWarning(prevType, ltype);
-
-          emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_ADDU);
-      } else if (prevOperatorSymbol == SYM_MINUS) {
-        if (prevType != ltype)
-          typeWarning(prevType, ltype);
-
-        emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SUBU);
-      }
-      tfree(1);
-
-      ltype = prevType;
+      ltype = emit_simpleExpression(prevType, ltype, prevOperatorSymbol, 0);
 
       // now load current value n (=r)
       delayedLoading(0, 0, rIsConstant, rValue);
 
       // emit Instructions for current operation
-      emitInstruction = 1;
+      ltype = emit_simpleExpression(ltype, rtype, operatorSymbol, KEEP_OPERAND_ORDER);
+
       operationPending = 0;
 
+      unsetConstant(operandInfo);
+
     // previous sequence was non-constant, constant. now is constant. can fold
-    // this is the same as and(lIsConstant, rIsConstant)
-    // else if and(operationPending, rIsConstant) or
     } else if (and(lIsConstant, rIsConstant)) {
+      ltype = fold_simpleExpression(lValue, rValue, ltype, rtype, operatorSymbol, operandInfo);
 
-      if (operatorSymbol == SYM_PLUS) {
-        if (ltype == INTSTAR_T) {
-          if (rtype == INT_T)
-            // pointer arithmetic: factor of 2^2 of integer operand
-            rValue = rValue << 4;
-        } else if (rtype == INTSTAR_T)
-          typeWarning(ltype, rtype);
-
-          lValue = lValue + rValue;
-
-      } else if (operatorSymbol == SYM_MINUS) {
-        if (ltype != rtype)
-          typeWarning(ltype, rtype);
-
-        lValue = lValue - rValue;
-
-      }
-
-      // reset as constant value
-      setConstant(operandInfo);
-      setOperandsValue(operandInfo, lValue);
-
-      lIsConstant = isConstant(operandInfo);
-
-      ltype = INT_T;
-
-      emitInstruction = 0;
       // operationPending stays active
 
     // l Is Constant, r Is Not => Load l and emit
     } else if (lIsConstant) {
-
-      unsetConstant(operandInfo);
       delayedLoading(lIsConstant, lValue, rIsConstant, rValue);
 
-      lIsConstant = isConstant(operandInfo);
+      ltype = emit_simpleExpression(ltype, rtype, operatorSymbol, SWITCH_OPERAND_ORDER);
 
-      emitInstruction = 1;
-      // r is already loaded to register, l is loaded now -> wrong order
-      switchOperands = 1;
+      unsetConstant(operandInfo);
 
-    // l Is Not a Constant, but r Is a Constant => Load l, set r as new l
+    // l Is Not a Constant, but r Is a Constant => set r as new l
     // set operation pending
     } else if (rIsConstant){
-
       prevType = ltype;
 
       if (operatorSymbol == SYM_MINUS) {
@@ -3249,7 +3252,7 @@ int gr_simpleExpression(int *operandInfo) {
       } else
         prevOperatorSymbol = operatorSymbol;
 
-      // no need for a prevValue, is already loaded to register
+      // preValue is already loaded to register
       lValue = rValue;
       ltype = rtype;
       operationPending = 1;
@@ -3258,71 +3261,66 @@ int gr_simpleExpression(int *operandInfo) {
       setConstant(operandInfo);
       setOperandsValue(operandInfo, lValue);
 
-      lIsConstant = isConstant(operandInfo);
-
-      emitInstruction = 0;
-
     // none of the value l and r is a constant, no folding possible -> emit
     } else {
-
-      unsetConstant(operandInfo);
       delayedLoading(lIsConstant, lValue, rIsConstant, rValue);
 
-      emitInstruction = 1;
-    }
+      ltype = emit_simpleExpression(ltype, rtype, operatorSymbol, KEEP_OPERAND_ORDER);
 
-    if (emitInstruction) {
-      if (operatorSymbol == SYM_PLUS) {
-        if (ltype == INTSTAR_T) {
-          if (rtype == INT_T)
-            // pointer arithmetic: factor of 2^2 of integer operand
-            emitLeftShiftBy(2);
-          } else if (rtype == INTSTAR_T)
-            typeWarning(ltype, rtype);
-
-          emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_ADDU);
-
-      } else if (operatorSymbol == SYM_MINUS) {
-        if (ltype != rtype)
-          typeWarning(ltype, rtype);
-        if (switchOperands) {
-
-          emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_SUBU);
-          switchOperands = 0;
-        } else
-          emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SUBU);
-      }
-
-      tfree(1);
+      unsetConstant(operandInfo);
     }
   }
 
   if (operationPending) {
-    unsetConstant(operandInfo);
+    lIsConstant = isConstant(operandInfo);
+    lValue = getOperandsValue(operandInfo);
+
     delayedLoading(lIsConstant, lValue, 0, 0);
 
-    if (prevOperatorSymbol == SYM_PLUS) {
-      if (prevType == INTSTAR_T) {
-        if (ltype == INT_T)
-          // pointer arithmetic: factor of 2^2 of integer operand
-          emitLeftShiftBy(2);
-      } else if (ltype == INTSTAR_T)
-        typeWarning(prevType, ltype);
+    ltype = emit_simpleExpression(prevType, ltype, operatorSymbol, KEEP_OPERAND_ORDER);
 
-        emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_ADDU);
-    } else if (prevOperatorSymbol == SYM_MINUS) {
-      if (prevType != ltype)
-        typeWarning(prevType, ltype);
+    unsetConstant(operandInfo);
+  }
+  // assert: allocatedTemporaries == n + 1 or n
 
-      emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SUBU);
-    }
+  return ltype;
+}
 
-    tfree(1);
+int emit_extExpression(int ltype, int rtype, int operatorSymbol, int operandOrder) {
+  if (rtype != INT_T)
+    typeWarning(INT_T, rtype);
 
-    ltype = prevType;
+  if (operatorSymbol == SYM_SHIFTLEFT) {
+    if (operandOrder == SWITCH_OPERAND_ORDER)
+      emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SLLV);
+    else
+      emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_SLLV);
+
+  } else if (operatorSymbol == SYM_SHIFTRIGHT) {
+    if (operandOrder == SWITCH_OPERAND_ORDER)
+      emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SRLV);
+    else
+      emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_SRLV);
   }
 
-    // assert: allocatedTemporaries == n + 1 or n
+  tfree(1);
+
+  return ltype;
+}
+
+int fold_extExpression(int lValue, int rValue, int ltype, int rtype, int operatorSymbol, int* operandInfo) {
+  if (rtype != INT_T)
+    typeWarning(INT_T, rtype);
+
+  if (operatorSymbol == SYM_SHIFTLEFT)
+    lValue = lValue << rValue;
+
+  else if (operatorSymbol == SYM_SHIFTRIGHT)
+    lValue = lValue >> rValue;
+
+  // reset as constant value
+  setConstant(operandInfo);
+  setOperandsValue(operandInfo, lValue);
 
   return ltype;
 }
@@ -3340,14 +3338,14 @@ int gr_extExpression(int *operandInfo) {
 
   ltype = gr_simpleExpression(operandInfo);
 
-  lIsConstant = isConstant(operandInfo);
-  lValue = getOperandsValue(operandInfo);
-
   // assert: allocatedTemporaries == n + 1 or n
 
   // << or >> ?
   while (isShiftLeftOrRight()) {
     operatorSymbol = symbol;
+
+    lIsConstant = isConstant(operandInfo);
+    lValue = getOperandsValue(operandInfo);
 
     getSymbol();
 
@@ -3360,34 +3358,14 @@ int gr_extExpression(int *operandInfo) {
 
     if (and(lIsConstant, rIsConstant)) {
 
-      if (operatorSymbol == SYM_SHIFTLEFT)
-        lValue = lValue << rValue;
-
-      else if (operatorSymbol == SYM_SHIFTRIGHT)
-        lValue = lValue >> rValue;
-
-      // reset as constant
-      setConstant(operandInfo);
-      setOperandsValue(operandInfo, lValue);
-
-      lIsConstant = isConstant(operandInfo);
-
-      ltype = INT_T;
+      ltype = fold_extExpression(lValue, rValue, ltype, rtype, operatorSymbol, operandInfo);
 
     } else {
-      unsetConstant(operandInfo);
       delayedLoading(lIsConstant, lValue, rIsConstant, rValue);
 
-      if (operatorSymbol == SYM_SHIFTLEFT) {
+      ltype = emit_extExpression(ltype, rtype, operatorSymbol, KEEP_OPERAND_ORDER);
 
-        emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_SLLV);
-
-      } else if (operatorSymbol == SYM_SHIFTRIGHT) {
-
-        emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_SRLV);
-      }
-
-        tfree(1);
+      unsetConstant(operandInfo);
     }
   }
 
