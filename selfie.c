@@ -3333,6 +3333,11 @@ int gr_extExpression(int *operandInfo) {
   int lValue;
   int rIsConstant;
   int rValue;
+  int operationPending;
+  int prevType;
+  int prevOperatorSymbol;
+
+  operationPending = 0;
 
   // assert: n = allocatedTemporaries
 
@@ -3356,10 +3361,63 @@ int gr_extExpression(int *operandInfo) {
 
     // assert: allocatedTemporaries == n + 2 or n + 1
 
-    if (and(lIsConstant, rIsConstant)) {
+    // previous sequence was non-constant, constant. now is non-constant
+    // cannot fold, load constant value, emit pending operation
+    // and emit current operation
+    if (and(operationPending, not(rIsConstant))) {
+      // load previous value n-1, this is stored in lValue
+      delayedLoading(lIsConstant, lValue, 0, 0);
 
+      // emit operation for n-2 OP n-1
+      ltype = emit_extExpression(prevType, ltype, prevOperatorSymbol, 0);
+
+      // now load current value n (=r)
+      delayedLoading(0, 0, rIsConstant, rValue);
+
+      // emit Instructions for current operation
+      ltype = emit_extExpression(ltype, rtype, operatorSymbol, KEEP_OPERAND_ORDER);
+
+      operationPending = 0;
+
+      unsetConstant(operandInfo);
+
+    // previous sequence was non-constant, constant. now is constant. can fold
+    } else if (and(lIsConstant, rIsConstant)) {
       ltype = fold_extExpression(lValue, rValue, ltype, rtype, operatorSymbol, operandInfo);
 
+      // operationPending stays active
+
+    // l Is Constant, r Is Not => Load l and emit
+    } else if (lIsConstant) {
+      delayedLoading(lIsConstant, lValue, rIsConstant, rValue);
+
+      ltype = emit_extExpression(ltype, rtype, operatorSymbol, SWITCH_OPERAND_ORDER);
+
+      unsetConstant(operandInfo);
+
+    // l Is Not a Constant, but r Is a Constant => set r as new l
+    // set operation pending
+    } else if (rIsConstant){
+      prevType = ltype;
+
+      if (operatorSymbol == SYM_MINUS) {
+
+        rValue = -rValue;
+        prevOperatorSymbol = SYM_PLUS;
+
+      } else
+        prevOperatorSymbol = operatorSymbol;
+
+      // preValue is already loaded to register
+      lValue = rValue;
+      ltype = rtype;
+      operationPending = 1;
+
+      // set as constant value
+      setConstant(operandInfo);
+      setOperandsValue(operandInfo, lValue);
+
+    // none of the value l and r is a constant, no folding possible -> emit
     } else {
       delayedLoading(lIsConstant, lValue, rIsConstant, rValue);
 
@@ -3427,6 +3485,9 @@ int gr_expression(int *operandInfo) {
 
       else if (operatorSymbol == SYM_GEQ)
         lValue = (lValue >= rValue);
+
+      talloc();
+      emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), lValue);
 
       unsetConstant(operandInfo);
 
@@ -3498,8 +3559,7 @@ int gr_expression(int *operandInfo) {
       }
     }
   } else {
-    rIsConstant = 0;
-    delayedLoading(lIsConstant, lValue, rIsConstant, rValue);
+    delayedLoading(lIsConstant, lValue, 0, 0);
     unsetConstant(operandInfo);
   }
 
