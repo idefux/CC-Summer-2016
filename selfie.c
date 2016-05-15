@@ -116,6 +116,7 @@ void exit(int code);
 
 int and(int a, int b);
 int not(int a);
+int size_of(int type);
 
 // ------------------------ GLOBAL CONSTANTS -----------------------
 
@@ -253,7 +254,7 @@ void printSymbols();
 
 // ------------------------ GLOBAL CONSTANTS -----------------------
 
-int NUMBEROFSYMBOLS  = 32;
+int NUMBEROFSYMBOLS  = 33;
 
 int SYM_EOF          = -1; // end of file
 int SYM_IDENTIFIER   = 0;  // identifier
@@ -288,8 +289,9 @@ int SYM_SHIFTLEFT    = 28; // <<
 int SYM_SHIFTRIGHT   = 29; // >>
 int SYM_LBRACKET     = 30; // [
 int SYM_RBRACKET     = 31; // ]
+int SYM_STRUCT       = 32; // STRUCT
 
-int SYMBOLS[32][2]; // array of strings representing symbols
+int SYMBOLS[33][2]; // array of strings representing symbols
 
 int maxIdentifierLength = 64; // maximum number of characters in an identifier
 int maxIntegerLength    = 10; // maximum number of characters in an integer
@@ -359,6 +361,7 @@ void initScanner () {
   SYMBOLS[SYM_SHIFTRIGHT][0]   = (int) ">>";
   SYMBOLS[SYM_LBRACKET][0]     = (int) "[";
   SYMBOLS[SYM_RBRACKET][0]     = (int) "]";
+  SYMBOLS[SYM_STRUCT][0]       = (int) "struct";
 
   character = CHAR_EOF;
   symbol    = SYM_EOF;
@@ -370,6 +373,69 @@ void resetScanner() {
   getCharacter();
   getSymbol();
 }
+
+// -----------------------------------------------------------------
+// --------------- USER DEFINED TYPES (UDT) TABLE ------------------
+// -----------------------------------------------------------------
+
+void createUdtTableEntry(int* identifier, int line);
+int* searchUdtTable(int* entry, int* identifier);
+int* searchUdtTableByIndex(int* entry, int index);
+int* getUdtTableEntry(int* string);
+int* getUdtTableEntryByIndex(int index);
+
+// udt table entry:
+// +----+---------+
+// |  0 | next    | pointer to next entry
+// |  1 | string  | identifier string, string literal
+// |  2 | line#   | source line number
+// |  3 | fields  | pointer to fields list
+// |  4 | size    | size of udt
+// |  5 | index   | index of udt (for ref by index)
+// +----+---------+
+
+int* getUdtNext(int* udt)       { return (int*) *udt; }
+int* getUdtIdentifier(int* udt) { return (int*) *(udt + 1); }
+int  getUdtLineNumber(int* udt) { return        *(udt + 2); }
+int* getUdtFields(int* udt)     { return (int*) *(udt + 3); }
+int  getUdtSize(int* udt)       { return        *(udt + 4); }
+int  getUdtIndex(int* udt)      { return        *(udt + 5); }
+
+void setUdtNext(int* udt, int* next)             { *udt       = (int) next; }
+void setUdtIdentifier(int* udt, int* identifier) { *(udt + 1) = (int) identifier; }
+void setUdtLineNumber(int* udt, int line)        { *(udt + 2) = line; }
+void setUdtFields(int* udt, int* fields)         { *(udt + 3) = (int) fields; }
+void setUdtSize(int* udt, int size)              { *(udt + 4) = size; }
+void setUdtIndex(int* udt, int index)            { *(udt + 5) = index; }
+
+// -----------------------------------------------------------------
+// --------------------- STRUCT FIELDS TABLE -----------------------
+// -----------------------------------------------------------------
+
+void createFieldEntry(int* identifier, int* udt, int line, int type, int offset);
+int* searchFieldTable(int* entry, int* identifier);
+int* getFieldTableEntry(int* udt, int* identifier);
+
+// udt table entry:
+// +----+---------+
+// |  0 | next    | pointer to next entry
+// |  1 | string  | identifier string, string literal
+// |  2 | line#   | source line number
+// |  3 | type    | type of field
+// |  4 | offset  | offset (from start of struct)
+// +----+---------+
+
+int* getFieldNext(int* field)       { return (int*) *field; }
+int* getFieldIdentifier(int* field) { return (int*) *(field + 1); }
+int  getFieldLineNumber(int* field) { return        *(field + 2); }
+int  getFieldType(int* field)       { return        *(field + 3); }
+int  getFieldOffset(int* field)     { return        *(field + 4); }
+
+void setFieldNext(int* field, int* next)             { *field       = (int) next; }
+void setFieldIdentifier(int* field, int* identifier) { *(field + 1) = (int) identifier; }
+void setFieldLineNumber(int* field, int line)        { *(field + 2) = line; }
+void setFieldType(int* field, int type)              { *(field + 3) = type; }
+void setFieldOffset(int* field, int offset)          { *(field + 4) = offset; }
 
 // -----------------------------------------------------------------
 // ------------------------- SYMBOL TABLE --------------------------
@@ -427,6 +493,7 @@ int VARIABLE  = 1;
 int PROCEDURE = 2;
 int STRING    = 3;
 int ARRAY     = 4;
+int UDT       = 5;
 
 // types
 int INT_T     = 1;
@@ -448,6 +515,9 @@ int SWITCH_OPERAND_ORDER = 1;
 int* global_symbol_table  = (int*) 0;
 int* local_symbol_table   = (int*) 0;
 int* library_symbol_table = (int*) 0;
+
+int* udt_table            = (int*) 0;
+int udt_number            = 0;
 
 // ------------------------- INITIALIZATION ------------------------
 
@@ -510,8 +580,11 @@ void gr_return(int returnType, int *operandInfo);
 void gr_statement(int *operandInfo);
 int  gr_type();
 int gr_variable(int offset);
+void gr_structIdentifier(int symbolTable);
+//void gr_structField(int* udt, int offset);
 void gr_initialization(int *name, int offset, int type);
 void gr_procedure(int *procedure, int returnType, int *operandInfo);
+void gr_struct(int symbolTable);
 void gr_cstar();
 
 // ------------------------ GLOBAL CONSTANTS -----------------------
@@ -1580,6 +1653,24 @@ int not(int a) {
     return 1;
 }
 
+int size_of(int type) {
+  int* udt;
+  if (type == INT_T)
+    return WORDSIZE;
+  else if (type == INTSTAR_T)
+    return WORDSIZE;
+  else if (type == VOID_T)
+    return WORDSIZE;
+  else {
+    udt = getUdtTableEntryByIndex(type);
+    if (udt != (int*) 0)
+      return getUdtSize(udt);
+    else
+      print((int*) "Cannot determine size of given type.");
+      println();
+  }
+}
+
 // *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~
 // -----------------------------------------------------------------
 // ---------------------    C O M P I L E R    ---------------------
@@ -1772,6 +1863,8 @@ int identifierOrKeyword() {
     return SYM_RETURN;
   if (identifierStringMatch(SYM_VOID))
     return SYM_VOID;
+  if (identifierStringMatch(SYM_STRUCT))
+    return SYM_STRUCT;
   else
     return SYM_IDENTIFIER;
 }
@@ -2051,6 +2144,80 @@ void printSymbols() {
 
 }
 
+void createUdtTableEntry(int* identifier, int line) {
+  int* newEntry;
+  int* fields;
+
+  newEntry = malloc(3 * SIZEOFINTSTAR + 3 * SIZEOFINT);
+
+  setUdtIdentifier(newEntry, identifier);
+  setUdtLineNumber(newEntry, line);
+  setUdtFields(newEntry, (int*) 0);
+  setUdtSize(newEntry, 0);
+  setUdtNext(newEntry, udt_table);
+  udt_table = newEntry;
+}
+
+int* searchUdtTable(int* entry, int* identifier) {
+  while (entry != (int*) 0) {
+    if (stringCompare(identifier, getUdtIdentifier(entry)))
+      return entry;
+    // keep looking
+    entry = getUdtNext(entry);
+  }
+
+  return (int*) 0;
+}
+
+int* searchUdtTableByIndex(int* entry, int index) {
+  while (entry != (int*) 0) {
+    if (index == getUdtIndex(entry))
+      return entry;
+    // keep looking
+    entry = getUdtNext(entry);
+  }
+
+  return (int*) 0;
+}
+
+int* getUdtTableEntry(int* identifier) {
+  return searchUdtTable(udt_table, identifier);
+}
+
+int* getUdtTableEntryByIndex(int index) {
+  return searchUdtTableByIndex(udt_table, index);
+}
+
+void createFieldEntry(int* identifier, int* udt, int line, int type, int offset) {
+  int* newEntry;
+
+  newEntry = malloc(2 * SIZEOFINTSTAR + 3 * SIZEOFINT);
+
+  setFieldIdentifier(newEntry, identifier);
+  setFieldLineNumber(newEntry, line);
+  setFieldType(newEntry, type);
+  setFieldOffset(newEntry, offset);
+  setFieldNext(newEntry, getUdtFields(udt));
+  setUdtFields(udt, newEntry);
+}
+
+int* searchFieldTable(int* field, int* identifier) {
+  while (field != (int*) 0) {
+    if (stringCompare(identifier, getFieldIdentifier(field)))
+      return field;
+
+    // keep looking
+    field = getFieldNext(field);
+  }
+
+  return (int*) 0;
+}
+
+
+int* getFieldTableEntry(int* udt, int* identifier) {
+  return searchFieldTable(getUdtFields(udt), identifier);
+}
+
 // -----------------------------------------------------------------
 // ------------------------- SYMBOL TABLE --------------------------
 // -----------------------------------------------------------------
@@ -2292,6 +2459,8 @@ int lookForType() {
   else if (symbol == SYM_VOID)
     return 0;
   else if (symbol == SYM_EOF)
+    return 0;
+  else if (symbol == SYM_STRUCT)
     return 0;
   else
     return 1;
@@ -4097,6 +4266,20 @@ int gr_variable(int offset) {
   return type;
 }
 
+void gr_structIdentifier(int symbolTable) {
+  if (symbol == SYM_IDENTIFIER) {
+    createSymbolTableEntry(symbolTable, identifier, lineNumber, UDT, 0, 0, 0, 0, 0);
+    // Need to fix size and address later (address = ref to UDT)
+
+    getSymbol();
+  } else {
+    syntaxErrorSymbol(SYM_IDENTIFIER);
+
+    createSymbolTableEntry(symbolTable, (int*) "missing struct identifier", lineNumber, UDT, 0, 0, 0, 0, 0);
+  }
+
+}
+
 void gr_initialization(int* name, int offset, int type) {
   int actualLineNumber;
   int hasCast;
@@ -4372,6 +4555,62 @@ void gr_procedure(int *procedure, int returnType, int *operandInfo) {
   // assert: allocatedTemporaries == 0
 }
 
+void gr_struct(int symbolTable) {
+  int type;
+  int* udt;
+  int* entry;
+  int offset;
+  // assert: current symbol == "struct"
+  // assert: allocatedTemporaries == 0
+
+  getSymbol();
+
+  gr_structIdentifier(symbolTable);
+  entry = getSymbolTableEntry(identifier, UDT);
+
+  if (symbol == SYM_LBRACE) {
+    getSymbol();
+
+    createUdtTableEntry(identifier, lineNumber);
+    udt = getUdtTableEntry(identifier);
+    offset = 0;
+
+    while (symbol != SYM_RBRACE) {
+
+      type = gr_type();
+
+      if (symbol == SYM_IDENTIFIER) {
+        createFieldEntry(identifier, udt, lineNumber, type, offset);
+        offset = offset + size_of(type);
+
+      } else
+        syntaxErrorSymbol(SYM_IDENTIFIER);
+
+      getSymbol();
+
+      if (symbol == SYM_SEMICOLON)
+        getSymbol();
+      else
+        syntaxErrorSymbol(SYM_SEMICOLON);
+
+    }
+
+    setUdtSize(udt, offset);
+
+    getSymbol();
+
+    if (symbol == SYM_SEMICOLON)
+      getSymbol();
+    else
+      syntaxErrorSymbol(SYM_SEMICOLON);
+
+  } else
+    syntaxErrorSymbol(SYM_LBRACE);
+
+
+  // assert: allocatedTemporaries == 0
+}
+
 void gr_cstar() {
   int type;
   int *variableOrProcedureName;
@@ -4405,6 +4644,9 @@ void gr_cstar() {
         gr_procedure(variableOrProcedureName, type, operandInfo);
       } else
         syntaxErrorSymbol(SYM_IDENTIFIER);
+    } else if (symbol == SYM_STRUCT) {
+      gr_struct(GLOBAL_TABLE);
+
     } else {
       type = gr_type();
 
@@ -7503,7 +7745,7 @@ int selfie(int argc, int* argv) {
         argv = argv + 2;
 
         selfie_compile();
-        printSymbols();
+        // printSymbols();
       } else if (stringCompare((int*) *argv, (int*) "-o")) {
         binaryName = (int*) *(argv+1);
 

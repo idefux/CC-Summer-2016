@@ -71,6 +71,11 @@ test_arrays: selfie
 	./selfie -c test/array_2d_assignment.c -d 1 | grep -E 'exit code 68'
 	./selfie -c test/array_parameter.c -d 1 | grep -E 'exit code 30'
 
+# Test struct functionality
+test_struct: selfie
+	./selfie -c test/struct_global_declaration_1.c
+	./selfie -c test/struct_global_declaration_2.c
+
 # Clean up
 clean:
 	rm -rf *.m
