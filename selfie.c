@@ -116,7 +116,9 @@ void exit(int code);
 
 int and(int a, int b);
 int not(int a);
+int or(int a, int b);
 int size_of(int type);
+int size_of_array(int arraySize1, int arraySize2, int type);
 
 // ------------------------ GLOBAL CONSTANTS -----------------------
 
@@ -496,9 +498,10 @@ int ARRAY     = 4;
 int UDT       = 5;
 
 // types
-int INT_T     = 1;
-int INTSTAR_T = 2;
-int VOID_T    = 3;
+int INT_T        = 1;
+int INTSTAR_T    = 2;
+int VOID_T       = 3;
+int STRUCTSTAR_T = 4;
 
 // symbol tables
 int GLOBAL_TABLE  = 1;
@@ -517,7 +520,8 @@ int* local_symbol_table   = (int*) 0;
 int* library_symbol_table = (int*) 0;
 
 int* udt_table            = (int*) 0;
-int udt_number            = 0;
+// start with udt index at highest type (STRUCTSTAR_T) + 1
+int udt_number            = 5;
 
 // ------------------------- INITIALIZATION ------------------------
 
@@ -584,7 +588,8 @@ void gr_structIdentifier(int symbolTable);
 //void gr_structField(int* udt, int offset);
 void gr_initialization(int *name, int offset, int type);
 void gr_procedure(int *procedure, int returnType, int *operandInfo);
-void gr_struct(int symbolTable);
+int* gr_struct(int symbolTable, int addressOffset);
+void gr_index(int* arraySize1, int* arraySize2);
 void gr_cstar();
 
 // ------------------------ GLOBAL CONSTANTS -----------------------
@@ -1653,6 +1658,15 @@ int not(int a) {
     return 1;
 }
 
+int or(int a, int b) {
+  if (a)
+    return 1;
+  else if (b)
+    return 1;
+  else
+    return 0;
+}
+
 int size_of(int type) {
   int* udt;
   if (type == INT_T)
@@ -1661,6 +1675,8 @@ int size_of(int type) {
     return WORDSIZE;
   else if (type == VOID_T)
     return WORDSIZE;
+  else if (type == STRUCTSTAR_T)
+    return WORDSIZE;
   else {
     udt = getUdtTableEntryByIndex(type);
     if (udt != (int*) 0)
@@ -1668,7 +1684,21 @@ int size_of(int type) {
     else
       print((int*) "Cannot determine size of given type.");
       println();
+      exit(-1);
   }
+}
+
+int size_of_array(int arraySize1, int arraySize2, int type) {
+  if (and(arraySize1 > 0, arraySize2 > 0))
+    return arraySize1 * arraySize2 * size_of(type);
+  else if (arraySize1 > 0)
+    return arraySize1 * size_of(type);
+  else if (arraySize2 > 0) {
+    print((int*) "Illegal array declaration.");
+    println();
+    exit(-1);
+  } else
+    return size_of(type);
 }
 
 // *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~ *~*~
@@ -2155,6 +2185,8 @@ void createUdtTableEntry(int* identifier, int line) {
   setUdtFields(newEntry, (int*) 0);
   setUdtSize(newEntry, 0);
   setUdtNext(newEntry, udt_table);
+  setUdtIndex(newEntry, udt_number);
+  udt_number = udt_number + 1;
   udt_table = newEntry;
 }
 
@@ -2277,6 +2309,11 @@ int* getSymbolTableEntry(int* string, int class) {
       return entry;
   } else if (class == ARRAY) {
     // local variables override global variables
+    entry = searchSymbolTable(local_symbol_table, string, class);
+
+    if (entry != (int*) 0)
+      return entry;
+  } else if (class == UDT) {
     entry = searchSymbolTable(local_symbol_table, string, class);
 
     if (entry != (int*) 0)
@@ -4449,80 +4486,91 @@ void gr_procedure(int *procedure, int returnType, int *operandInfo) {
 
     localVariables = 0;
 
-    while (symbol == SYM_INT) {
+    while (or(symbol == SYM_INT, symbol == SYM_STRUCT)) {
+    //while (symbol == SYM_INT) {
 
-      localVariables = localVariables + 1;
+      if (symbol == SYM_STRUCT) {
 
-      type = gr_variable(-localVariables * WORDSIZE);
+        entry = gr_struct(LOCAL_TABLE, localVariables);
 
-      if (symbol == SYM_SEMICOLON)
-        getSymbol();
-      else if (symbol == SYM_LBRACKET) {
-        getSymbol();
+        if (getClass(entry) == VARIABLE)
+          localVariables = localVariables + size_of(getType(entry)) / 4;
 
-        if (symbol == SYM_INTEGER) {
-          if (literal > 0)
-            arraySize1 = literal;
-          //else
-            // TODO: fire error
+      } else {
 
-          localVariables = localVariables + (arraySize1 - 1);
-          // fix symbolTableEntry
-          entry = getSymbolTableEntry(identifier, VARIABLE);
-          setClass(entry, ARRAY);
-          setAddress(entry, -localVariables * WORDSIZE);
-          setSize1(entry, arraySize1);
+        localVariables = localVariables + 1;
 
-        } else
-          syntaxErrorSymbol(SYM_INTEGER);
+        type = gr_variable(-localVariables * WORDSIZE);
 
-        getSymbol();
-
-        if (symbol == SYM_RBRACKET) {
+        if (symbol == SYM_SEMICOLON)
+          getSymbol();
+        else if (symbol == SYM_LBRACKET) {
           getSymbol();
 
-          if (symbol == SYM_LBRACKET) {
+          if (symbol == SYM_INTEGER) {
+            if (literal > 0)
+              arraySize1 = literal;
+            //else
+              // TODO: fire error
+
+            localVariables = localVariables + (arraySize1 - 1);
+            // fix symbolTableEntry
+            entry = getSymbolTableEntry(identifier, VARIABLE);
+            setClass(entry, ARRAY);
+            setAddress(entry, -localVariables * WORDSIZE);
+            setSize1(entry, arraySize1);
+
+          } else
+            syntaxErrorSymbol(SYM_INTEGER);
+
+          getSymbol();
+
+          if (symbol == SYM_RBRACKET) {
             getSymbol();
 
-            if (symbol == SYM_INTEGER) {
-              if (literal > 0)
-                arraySize2 = literal;
-              //else
-                // TODO: fire error
-
-              // fix symbolTableEntry
-              localVariables = localVariables + (arraySize1 - 1) * arraySize2;
-              setAddress(entry, -localVariables * WORDSIZE);
-              setSize2(entry, arraySize2);
-
-            } else
-              syntaxErrorSymbol(SYM_INTEGER);
-
-            getSymbol();
-
-            if (symbol == SYM_RBRACKET) {
+            if (symbol == SYM_LBRACKET) {
               getSymbol();
 
-              if (symbol == SYM_SEMICOLON) {
-                getSymbol();
+              if (symbol == SYM_INTEGER) {
+                if (literal > 0)
+                  arraySize2 = literal;
+                //else
+                  // TODO: fire error
+
+                // fix symbolTableEntry
+                localVariables = localVariables + (arraySize1 - 1) * arraySize2;
+                setAddress(entry, -localVariables * WORDSIZE);
+                setSize2(entry, arraySize2);
 
               } else
-                syntaxErrorSymbol(SYM_SEMICOLON);
+                syntaxErrorSymbol(SYM_INTEGER);
 
-            } else
-              syntaxErrorSymbol(SYM_RBRACKET);
+              getSymbol();
+
+              if (symbol == SYM_RBRACKET) {
+                getSymbol();
+
+                if (symbol == SYM_SEMICOLON) {
+                  getSymbol();
+
+                } else
+                  syntaxErrorSymbol(SYM_SEMICOLON);
+
+              } else
+                syntaxErrorSymbol(SYM_RBRACKET);
 
 
-          } else if (symbol == SYM_SEMICOLON)
-            getSymbol();
-          else
-            syntaxErrorSymbol(SYM_SEMICOLON);
-        } else
-          syntaxErrorSymbol(SYM_RBRACKET);
+            } else if (symbol == SYM_SEMICOLON)
+              getSymbol();
+            else
+              syntaxErrorSymbol(SYM_SEMICOLON);
+          } else
+            syntaxErrorSymbol(SYM_RBRACKET);
 
+        }
+        else
+          syntaxErrorSymbol(SYM_SEMICOLON);
       }
-      else
-        syntaxErrorSymbol(SYM_SEMICOLON);
     }
 
     help_procedure_prologue(localVariables);
@@ -4555,11 +4603,17 @@ void gr_procedure(int *procedure, int returnType, int *operandInfo) {
   // assert: allocatedTemporaries == 0
 }
 
-void gr_struct(int symbolTable) {
+int* gr_struct(int symbolTable, int addressOffset) {
   int type;
   int* udt;
   int* entry;
   int offset;
+  int* arraySize1;
+  int* arraySize2;
+
+  arraySize1 = malloc(1 * SIZEOFINT);
+  arraySize2 = malloc(1 * SIZEOFINT);
+
   // assert: current symbol == "struct"
   // assert: allocatedTemporaries == 0
 
@@ -4568,29 +4622,68 @@ void gr_struct(int symbolTable) {
   gr_structIdentifier(symbolTable);
   entry = getSymbolTableEntry(identifier, UDT);
 
-  if (symbol == SYM_LBRACE) {
+  // struct identifier identifier -> variable definition of type struct identifier
+  // struct identifier* identifier -> variable definition of type struct identifier*
+  // struct identifier { -> struct declration
+
+  // variable definition, type: struct identifier
+  if (symbol == SYM_IDENTIFIER) {
+    // TODO: next assignment
+
+  // variable definition, type: struct identifier *
+  } else if (symbol == SYM_ASTERISK) {
+
+    udt = getUdtTableEntry(identifier);
+    if (udt == (int*) 0) {
+      syntaxErrorMessage("Unknown datatype.");
+      exit(-1);
+    }
+
     getSymbol();
+
+    if (symbol == SYM_IDENTIFIER)
+      getSymbol();
+    else
+      syntaxErrorSymbol(SYM_IDENTIFIER);
+
+    if (symbol == SYM_SEMICOLON)
+      getSymbol();
+    else
+      syntaxErrorSymbol(SYM_SEMICOLON);
+
+    setString(entry, identifier);
+    setClass(entry, VARIABLE);
+    setType(entry, getUdtIndex(udt));
+    setAddress(entry, addressOffset);
+
+  // struct declaration
+  } else if (symbol == SYM_LBRACE) {
 
     createUdtTableEntry(identifier, lineNumber);
     udt = getUdtTableEntry(identifier);
     offset = 0;
 
+    getSymbol();
+
     while (symbol != SYM_RBRACE) {
 
       type = gr_type();
 
-      if (symbol == SYM_IDENTIFIER) {
-        createFieldEntry(identifier, udt, lineNumber, type, offset);
-        offset = offset + size_of(type);
-
-      } else
-        syntaxErrorSymbol(SYM_IDENTIFIER);
-
-      getSymbol();
-
-      if (symbol == SYM_SEMICOLON)
+      if (symbol == SYM_IDENTIFIER)
         getSymbol();
       else
+        syntaxErrorSymbol(SYM_IDENTIFIER);
+
+      if (symbol == SYM_LBRACKET)
+        gr_index(arraySize1, arraySize2);
+
+      if (symbol == SYM_SEMICOLON) {
+        createFieldEntry(identifier, udt, lineNumber, type, offset);
+        offset = offset + size_of_array(*arraySize1, *arraySize2, type);
+
+        getSymbol();
+
+      } else
         syntaxErrorSymbol(SYM_SEMICOLON);
 
     }
@@ -4609,6 +4702,51 @@ void gr_struct(int symbolTable) {
 
 
   // assert: allocatedTemporaries == 0
+
+  return entry;
+}
+
+void gr_index(int* arraySize1, int* arraySize2) {
+  *arraySize1 = 0;
+  *arraySize2 = 0;
+
+  getSymbol();
+
+  if (symbol == SYM_INTEGER) {
+    if (literal > 0)
+      *arraySize1 = literal;
+    //else
+      // TODO: fire error
+  } else
+    syntaxErrorSymbol(SYM_INTEGER);
+
+  getSymbol();
+
+  if (symbol == SYM_RBRACKET)
+    getSymbol();
+  else
+    syntaxErrorSymbol(SYM_RBRACKET);
+
+  // another bracket -> two dim array
+  if (symbol == SYM_LBRACKET) {
+    getSymbol();
+
+    if (symbol == SYM_INTEGER) {
+      if (literal > 0)
+        *arraySize2 = literal;
+      //else
+        // TODO: fire error
+    } else
+      syntaxErrorSymbol(SYM_INTEGER);
+
+    getSymbol();
+
+    if (symbol == SYM_RBRACKET)
+      getSymbol();
+    else
+      syntaxErrorSymbol(SYM_RBRACKET);
+  }
+
 }
 
 void gr_cstar() {
@@ -4617,6 +4755,7 @@ void gr_cstar() {
   int *operandInfo;
   int arraySize1;
   int arraySize2;
+  int* entry;
 
   operandInfo = malloc(2 * SIZEOFINT);
 
@@ -4645,7 +4784,9 @@ void gr_cstar() {
       } else
         syntaxErrorSymbol(SYM_IDENTIFIER);
     } else if (symbol == SYM_STRUCT) {
-      gr_struct(GLOBAL_TABLE);
+      entry = gr_struct(GLOBAL_TABLE, allocatedMemory);
+      if (getClass(entry) == VARIABLE)
+        allocatedMemory = allocatedMemory + size_of(getType(entry));
 
     } else {
       type = gr_type();
@@ -4670,13 +4811,6 @@ void gr_cstar() {
 
           // type identifier[size] = array declaration
           } else if (symbol == SYM_LBRACKET) {
-            // only reserve memory
-            // no array initialization capabilites desired
-            // int identifier[]; => is a regular pointer, look how pointers are doubly-linked
-            // int identifier[10]; => allocate 10 * WORDSIZE
-            // int identifier[] => missing SEMICOLON
-            // int identifier[-1] => invalid
-            // int identifier[0] => invalid
 
             getSymbol();
 

@@ -75,6 +75,7 @@ test_arrays: selfie
 test_struct: selfie
 	./selfie -c test/struct_global_declaration_1.c
 	./selfie -c test/struct_global_declaration_2.c
+	./selfie -c test/struct_local_declaration.c
 
 # Clean up
 clean:
