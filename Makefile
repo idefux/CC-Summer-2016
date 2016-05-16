@@ -70,12 +70,15 @@ test_arrays: selfie
 	./selfie -c test/array_2d_global_vars.c -d 1 | grep -E 'exit code 12'
 	./selfie -c test/array_2d_assignment.c -d 1 | grep -E 'exit code 68'
 	./selfie -c test/array_parameter.c -d 1 | grep -E 'exit code 30'
+	./selfie -c test/array_function_argument.c -d 1 | grep -E 'exit code 30'
 
 # Test struct functionality
 test_struct: selfie
 	./selfie -c test/struct_global_declaration_1.c
 	./selfie -c test/struct_global_declaration_2.c
 	./selfie -c test/struct_local_declaration.c
+	./selfie -c test/struct_pointer_function_argument.c
+	./selfie -c test/struct_pointer_to_struct.c
 
 # Clean up
 clean:

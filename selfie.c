@@ -584,7 +584,8 @@ void gr_return(int returnType, int *operandInfo);
 void gr_statement(int *operandInfo);
 int  gr_type();
 int gr_variable(int offset);
-void gr_structIdentifier(int symbolTable);
+int gr_argument();
+//void gr_structIdentifier(int symbolTable);
 //void gr_structField(int* udt, int offset);
 void gr_initialization(int *name, int offset, int type);
 void gr_procedure(int *procedure, int returnType, int *operandInfo);
@@ -2613,8 +2614,10 @@ int* putType(int type) {
     return (int*) "int*";
   else if (type == VOID_T)
     return (int*) "void";
+  else if (type == STRUCTSTAR_T)
+    return (int*) "struct*";
   else
-    return (int*) "unknown";
+    return (int*) "user-defined-type";
 }
 
 void typeWarning(int expected, int found) {
@@ -2689,6 +2692,12 @@ int load_variable(int* variable) {
     tfree(1);
 
     return INTSTAR_T;
+
+  } else if (getClass(entry) == UDT) {
+
+    // TODO: Next assignment
+    return getType(entry);
+
   } else {
     emitIFormat(OP_LW, getScope(entry), currentTemporary(), getAddress(entry));
     return getType(entry);
@@ -4268,6 +4277,7 @@ void gr_statement(int *operandInfo) {
 
 int gr_type() {
   int type;
+  int* udt;
 
   type = INT_T;
 
@@ -4279,6 +4289,22 @@ int gr_type() {
 
       getSymbol();
     }
+  } else if (symbol == SYM_STRUCT) {
+    getSymbol();
+    if (symbol == SYM_IDENTIFIER) {
+      udt = getUdtTableEntry(identifier);
+      type = getUdtIndex(udt);
+
+      getSymbol();
+
+      if (symbol == SYM_ASTERISK) {
+        getSymbol();
+      }
+      else
+        syntaxErrorSymbol(SYM_ASTERISK);
+    } else
+      syntaxErrorSymbol(SYM_IDENTIFIER);
+
   } else
     syntaxErrorSymbol(SYM_INT);
 
@@ -4291,13 +4317,73 @@ int gr_variable(int offset) {
   type = gr_type();
 
   if (symbol == SYM_IDENTIFIER) {
+
     createSymbolTableEntry(LOCAL_TABLE, identifier, lineNumber, VARIABLE, type, 0, offset, 0, 0);
 
     getSymbol();
+
   } else {
     syntaxErrorSymbol(SYM_IDENTIFIER);
 
     createSymbolTableEntry(LOCAL_TABLE, (int*) "missing variable name", lineNumber, VARIABLE, type, 0, offset, 0, 0);
+  }
+
+  return type;
+}
+
+int gr_argument() {
+  int type;
+
+  type = gr_type();
+
+  if (symbol == SYM_IDENTIFIER) {
+
+    getSymbol();
+
+    // optional: first pair of brackets
+    if (symbol == SYM_LBRACKET) {
+      type = INTSTAR_T;
+      getSymbol();
+
+      if (symbol == SYM_INTEGER) {
+        getSymbol();
+
+        if (symbol == SYM_RBRACKET)
+          getSymbol();
+
+        else
+          syntaxErrorSymbol(SYM_RBRACKET);
+
+      } else
+        syntaxErrorSymbol(SYM_INTEGER);
+
+    }
+
+    // optional: second pair of brackets
+    if (symbol == SYM_LBRACKET) {
+      getSymbol();
+
+      if (symbol == SYM_INTEGER) {
+        getSymbol();
+
+        if (symbol == SYM_RBRACKET)
+          getSymbol();
+
+        else
+          syntaxErrorSymbol(SYM_RBRACKET);
+
+      } else
+        syntaxErrorSymbol(SYM_INTEGER);
+
+    }
+
+    createSymbolTableEntry(LOCAL_TABLE, identifier, lineNumber, VARIABLE, type, 0, 0, 0, 0);
+
+
+  } else {
+    syntaxErrorSymbol(SYM_IDENTIFIER);
+
+    createSymbolTableEntry(LOCAL_TABLE, (int*) "missing variable name", lineNumber, VARIABLE, type, 0, 0, 0, 0);
   }
 
   return type;
@@ -4412,14 +4498,16 @@ void gr_procedure(int *procedure, int returnType, int *operandInfo) {
     getSymbol();
 
     if (symbol != SYM_RPARENTHESIS) {
-      gr_variable(0);
+      //gr_variable(0);
+      gr_argument();
 
       numberOfParameters = 1;
 
       while (symbol == SYM_COMMA) {
         getSymbol();
 
-        gr_variable(0);
+        //gr_variable(0);
+        gr_argument();
 
         numberOfParameters = numberOfParameters + 1;
       }
@@ -4619,7 +4707,17 @@ int* gr_struct(int symbolTable, int addressOffset) {
 
   getSymbol();
 
-  gr_structIdentifier(symbolTable);
+  if (symbol == SYM_IDENTIFIER) {
+    createSymbolTableEntry(symbolTable, identifier, lineNumber, UDT, 0, 0, 0, 0, 0);
+    // Need to fix size and address later (address = ref to UDT)
+
+    getSymbol();
+  } else {
+    syntaxErrorSymbol(SYM_IDENTIFIER);
+
+    createSymbolTableEntry(symbolTable, (int*) "missing struct identifier", lineNumber, UDT, 0, 0, 0, 0, 0);
+  }
+
   entry = getSymbolTableEntry(identifier, UDT);
 
   // struct identifier identifier -> variable definition of type struct identifier
@@ -4646,15 +4744,15 @@ int* gr_struct(int symbolTable, int addressOffset) {
     else
       syntaxErrorSymbol(SYM_IDENTIFIER);
 
-    if (symbol == SYM_SEMICOLON)
-      getSymbol();
-    else
-      syntaxErrorSymbol(SYM_SEMICOLON);
+    if (symbol == SYM_SEMICOLON) {
+      setString(entry, identifier);
+      setClass(entry, VARIABLE);
+      setType(entry, getUdtIndex(udt));
+      setAddress(entry, -addressOffset);
 
-    setString(entry, identifier);
-    setClass(entry, VARIABLE);
-    setType(entry, getUdtIndex(udt));
-    setAddress(entry, addressOffset);
+      getSymbol();
+    } else
+      syntaxErrorSymbol(SYM_SEMICOLON);
 
   // struct declaration
   } else if (symbol == SYM_LBRACE) {
