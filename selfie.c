@@ -466,6 +466,19 @@ int reportUndefinedProcedures();
 // |  9 | size2   | size of array dimension 2
 // +----+---------+
 
+struct SymbolTable {
+  struct SymbolTable* next;
+  int* string;
+  int line;
+  int class;
+  int type;
+  int value;
+  int address;
+  int scope;
+  int size1;
+  int size2;
+};
+
 int* getNextEntry(int* entry)  { return (int*) *entry; }
 int* getString(int* entry)     { return (int*) *(entry + 1); }
 int  getLineNumber(int* entry) { return        *(entry + 2); }
