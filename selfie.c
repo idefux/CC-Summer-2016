@@ -3195,6 +3195,12 @@ int gr_factor(int *operandInfo) {
       } else
         syntaxErrorSymbol(SYM_RBRACKET);
 
+    } else if (symbol == SYM_STRUCTACCESS) {
+
+      type = gr_structAccess();
+
+      emitIFormat(OP_LW, currentTemporary(), currentTemporary(), 0);
+
     } else
       // variable access: identifier
       type = load_variable(variableOrProcedureName);
