@@ -256,7 +256,7 @@ void printSymbols();
 
 // ------------------------ GLOBAL CONSTANTS -----------------------
 
-int NUMBEROFSYMBOLS  = 33;
+int NUMBEROFSYMBOLS  = 34;
 
 int SYM_EOF          = -1; // end of file
 int SYM_IDENTIFIER   = 0;  // identifier
@@ -292,8 +292,9 @@ int SYM_SHIFTRIGHT   = 29; // >>
 int SYM_LBRACKET     = 30; // [
 int SYM_RBRACKET     = 31; // ]
 int SYM_STRUCT       = 32; // STRUCT
+int SYM_STRUCTACCESS = 33; // ->
 
-int SYMBOLS[33][2]; // array of strings representing symbols
+int SYMBOLS[34][2]; // array of strings representing symbols
 
 int maxIdentifierLength = 64; // maximum number of characters in an identifier
 int maxIntegerLength    = 10; // maximum number of characters in an integer
@@ -364,6 +365,7 @@ void initScanner () {
   SYMBOLS[SYM_LBRACKET][0]     = (int) "[";
   SYMBOLS[SYM_RBRACKET][0]     = (int) "]";
   SYMBOLS[SYM_STRUCT][0]       = (int) "struct";
+  SYMBOLS[SYM_STRUCTACCESS][0] = (int) "->";
 
   character = CHAR_EOF;
   symbol    = SYM_EOF;
@@ -596,14 +598,16 @@ void gr_if(int *operandInfo);
 void gr_return(int returnType, int *operandInfo);
 void gr_statement(int *operandInfo);
 int  gr_type();
-int gr_variable(int offset);
-int gr_argument();
+int  gr_variable(int offset);
+int  gr_argument();
 //void gr_structIdentifier(int symbolTable);
 //void gr_structField(int* udt, int offset);
 void gr_initialization(int *name, int offset, int type);
 void gr_procedure(int *procedure, int returnType, int *operandInfo);
 int* gr_struct(int symbolTable, int addressOffset);
-void gr_index(int* arraySize1, int* arraySize2);
+void gr_arraySize(int* arraySize1, int* arraySize2);
+void gr_arrayIndex(int* operandInfo);
+void gr_structAccess();
 void gr_cstar();
 
 // ------------------------ GLOBAL CONSTANTS -----------------------
@@ -2060,7 +2064,13 @@ int getSymbol() {
     } else if (character == CHAR_DASH) {
         getCharacter();
 
-        symbol = SYM_MINUS;
+        if (character == CHAR_GT) {
+          getCharacter();
+
+          symbol = SYM_STRUCTACCESS;
+
+        } else
+          symbol = SYM_MINUS;
 
     } else if (character == CHAR_ASTERISK) {
         getCharacter();
@@ -4786,7 +4796,7 @@ int* gr_struct(int symbolTable, int addressOffset) {
         syntaxErrorSymbol(SYM_IDENTIFIER);
 
       if (symbol == SYM_LBRACKET)
-        gr_index(arraySize1, arraySize2);
+        gr_arraySize(arraySize1, arraySize2);
 
       if (symbol == SYM_SEMICOLON) {
         createFieldEntry(identifier, udt, lineNumber, type, offset);
@@ -4817,7 +4827,7 @@ int* gr_struct(int symbolTable, int addressOffset) {
   return entry;
 }
 
-void gr_index(int* arraySize1, int* arraySize2) {
+void gr_arraySize(int* arraySize1, int* arraySize2) {
   *arraySize1 = 0;
   *arraySize2 = 0;
 
@@ -4857,6 +4867,13 @@ void gr_index(int* arraySize1, int* arraySize2) {
     else
       syntaxErrorSymbol(SYM_RBRACKET);
   }
+
+}
+
+void gr_structAccess() {
+
+  // assert: symbol == "->"
+
 
 }
 
