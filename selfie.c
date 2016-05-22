@@ -149,8 +149,9 @@ int CHAR_DOUBLEQUOTE  = '"';
 int CHAR_LBRACKET     = '[';
 int CHAR_RBRACKET     = ']';
 
-int SIZEOFINT     = 4; // must be the same as WORDSIZE
-int SIZEOFINTSTAR = 4; // must be the same as WORDSIZE
+int SIZEOFINT        = 4; // must be the same as WORDSIZE
+int SIZEOFINTSTAR    = 4; // must be the same as WORDSIZE
+int SIZEOFSTRUCTSTAR = 4; // must be the same as WORDSIZE
 
 int* power_of_two_table;
 
@@ -587,6 +588,8 @@ void unsetConstant(int *operandInfo);
 void setOperandsValue(int *operandInfo, int value);
 void delayedLoading(int lIsConstant, int lValue, int rIsConstant, int rValue);
 
+void syntaxErrorField(int* udt, int* identifier);
+
 int  gr_call(int *procedure, int *operandInfo);
 int  gr_factor(int *operandInfo);
 int  gr_term(int *operandInfo);
@@ -606,8 +609,8 @@ void gr_initialization(int *name, int offset, int type);
 void gr_procedure(int *procedure, int returnType, int *operandInfo);
 int* gr_struct(int symbolTable, int addressOffset);
 void gr_arraySize(int* arraySize1, int* arraySize2);
-void gr_arrayIndex(int* operandInfo);
-void gr_structAccess();
+// Stefan TODO: void gr_arrayIndex(int* operandInfo);
+int gr_structAccess();
 void gr_cstar();
 
 // ------------------------ GLOBAL CONSTANTS -----------------------
@@ -2946,6 +2949,20 @@ void delayedLoading(int lIsConstant, int lValue, int rIsConstant, int rValue) {
   }
 }
 
+void syntaxErrorField(int* udt, int* identifier) {
+  printLineNumber((int*) "error", lineNumber);
+
+  print((int*) "Struct ");
+  print(getUdtIdentifier(udt));
+
+  print((int*) " has no field ");
+  print(identifier);
+
+  print((int*) ".");
+  println();
+
+}
+
 int gr_call(int *procedure, int *operandInfo) {
   int *entry;
   int numberOfTemporaries;
@@ -4169,7 +4186,7 @@ void gr_statement(int *operandInfo) {
     } else
       syntaxErrorSymbol(SYM_LPARENTHESIS);
   }
-  // identifier [ "[" index1 "]" ] [ "[" index2 "]" ] "=" expression | call
+  // identifier [ arrayIndex ] [structAccess] "=" expression | call
   else if (symbol == SYM_IDENTIFIER) {
     variableOrProcedureName = identifier;
 
@@ -4189,7 +4206,7 @@ void gr_statement(int *operandInfo) {
       else
         syntaxErrorSymbol(SYM_SEMICOLON);
 
-    // identifier "[" index1 "]" [ "[" index2 "]" ] = expression
+    // identifier [ arrayIndex ] [structAccess] = expression
     } else if (symbol == SYM_LBRACKET) {
       getSymbol();
 
@@ -4231,6 +4248,9 @@ void gr_statement(int *operandInfo) {
           emitIFormat(OP_SW, previousTemporary(), currentTemporary(),0);
           tfree(2);
 
+        // Stefan TODO: structAccess after arrayIndex
+        // Place code above into function gr_arrayIndex
+
       } else {
 
         entry = getArray(variableOrProcedureName);
@@ -4247,6 +4267,27 @@ void gr_statement(int *operandInfo) {
         tfree(2);
 
       }
+
+      if (symbol == SYM_SEMICOLON)
+        getSymbol();
+      else
+        syntaxErrorSymbol(SYM_SEMICOLON);
+
+    // identifier [structAccess] = expression
+    } else if (symbol == SYM_STRUCTACCESS) {
+
+      ltype = gr_structAccess();
+
+      getSymbol();
+
+      rtype = gr_expression(operandInfo);
+
+      if (ltype != rtype)
+        typeWarning(ltype, rtype);
+
+      emitIFormat(OP_SW, previousTemporary(), currentTemporary(),0);
+      tfree(2);
+
 
       if (symbol == SYM_SEMICOLON)
         getSymbol();
@@ -4870,11 +4911,47 @@ void gr_arraySize(int* arraySize1, int* arraySize2) {
 
 }
 
-void gr_structAccess() {
-
+int gr_structAccess() {
+  int* udt;
+  int* entry;
+  int* field;
+  int type;
   // assert: symbol == "->"
 
+  entry = getVariable(identifier);
 
+  getSymbol();
+
+  if (symbol == SYM_IDENTIFIER) {
+    // check if identifier is a field of struct_type
+    udt = getUdtTableEntryByIndex(getType(entry));
+    field = getFieldTableEntry(udt, identifier);
+
+    if (field == (int*) 0) {
+      syntaxErrorField(udt, identifier);
+      exit(-1);
+    }
+
+    type = getFieldType(field);
+
+    getSymbol();
+
+    // TODO: Check for array index
+
+    // TODO: Check for nested structAccess
+
+    talloc();
+
+    // only pointer to struct for now -> dereference
+    emitIFormat(OP_LW, getScope(entry), currentTemporary(), getAddress(entry));
+
+    //emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), getAddress(entry));
+    emitIFormat(OP_ADDIU, currentTemporary(), currentTemporary(), getFieldOffset(field));
+
+  } else
+    syntaxErrorSymbol(SYM_IDENTIFIER);
+
+  return type;
 }
 
 void gr_cstar() {
@@ -4914,7 +4991,9 @@ void gr_cstar() {
     } else if (symbol == SYM_STRUCT) {
       entry = gr_struct(GLOBAL_TABLE, allocatedMemory);
       if (getClass(entry) == VARIABLE)
-        allocatedMemory = allocatedMemory + size_of(getType(entry));
+        // Stefan TODO: allocatedMemory = allocatedMemory + size_of(getType(entry));
+        // only pointer to struct for now
+        allocatedMemory = allocatedMemory + size_of(SIZEOFSTRUCTSTAR);
 
     } else {
       type = gr_type();
