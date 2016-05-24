@@ -4665,9 +4665,11 @@ void gr_procedure(int *procedure, int returnType, int *operandInfo) {
 
         entry = gr_struct(LOCAL_TABLE, localVariables, operandInfo);
 
-        if (entry->class == VARIABLE)
+        if (entry->class == VARIABLE) {
           //localVariables = localVariables + size_of(entry->type) / 4;
           localVariables = localVariables + 1;
+          entry->address = -localVariables * WORDSIZE;
+        }
 
       } else {
 
