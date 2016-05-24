@@ -4786,6 +4786,7 @@ struct SymbolTable* gr_struct(int symbolTable, int addressOffset, int* operandIn
   int* arraySize1;
   int* arraySize2;
   int* variableOrProcedureName;
+  int* structName;
 
   arraySize1 = malloc(1 * SIZEOFINT);
   arraySize2 = malloc(1 * SIZEOFINT);
@@ -4796,17 +4797,17 @@ struct SymbolTable* gr_struct(int symbolTable, int addressOffset, int* operandIn
   getSymbol();
 
   if (symbol == SYM_IDENTIFIER) {
-    createSymbolTableEntry(symbolTable, identifier, lineNumber, UDT, 0, 0, 0, 0, 0);
+    structName = identifier;
+    //createSymbolTableEntry(symbolTable, identifier, lineNumber, UDT, 0, 0, 0, 0, 0);
     // Need to fix size and address later (address = ref to UDT)
-
     getSymbol();
+
   } else {
     syntaxErrorSymbol(SYM_IDENTIFIER);
-
-    createSymbolTableEntry(symbolTable, (int*) "missing struct identifier", lineNumber, UDT, 0, 0, 0, 0, 0);
+    //createSymbolTableEntry(symbolTable, (int*) "missing struct identifier", lineNumber, UDT, 0, 0, 0, 0, 0);
   }
 
-  entry = getSymbolTableEntry(identifier, UDT);
+  //entry = getSymbolTableEntry(identifier, UDT);
 
   // struct identifier identifier -> variable definition of type struct identifier
   // struct identifier* identifier -> variable definition of type struct identifier*
@@ -4825,6 +4826,8 @@ struct SymbolTable* gr_struct(int symbolTable, int addressOffset, int* operandIn
       exit(-1);
     }
 
+    type = getUdtIndex(udt);
+
     getSymbol();
 
     if (symbol == SYM_IDENTIFIER) {
@@ -4836,27 +4839,29 @@ struct SymbolTable* gr_struct(int symbolTable, int addressOffset, int* operandIn
       syntaxErrorSymbol(SYM_IDENTIFIER);
 
     if (symbol == SYM_SEMICOLON) {
-      entry->string = identifier;
-      entry->class = VARIABLE;
-      entry->type =  getUdtIndex(udt);
-      entry->address = -addressOffset;
-
+      createSymbolTableEntry(symbolTable, variableOrProcedureName, lineNumber, VARIABLE, type, 0, 0, 0, 0);
+      entry = getSymbolTableEntry(variableOrProcedureName, VARIABLE);
       getSymbol();
 
     // procedure with struct identifier* as return value
     } else if (symbol == SYM_LPARENTHESIS) {
 
-      gr_procedure(variableOrProcedureName, getUdtIndex(udt), operandInfo);
+      gr_procedure(variableOrProcedureName, type, operandInfo);
+      entry = getSymbolTableEntry(variableOrProcedureName, PROCEDURE);
 
     } else if (symbol == SYM_ASSIGN) {
 
-      gr_initialization(variableOrProcedureName, -addressOffset, getUdtIndex(udt));
+      gr_initialization(variableOrProcedureName, -addressOffset, type);
+      entry = getSymbolTableEntry(variableOrProcedureName, VARIABLE);
 
     } else
       syntaxErrorSymbol(SYM_SEMICOLON);
 
   // struct declaration
   } else if (symbol == SYM_LBRACE) {
+
+    createSymbolTableEntry(symbolTable, structName, lineNumber, UDT, 0, 0, 0, 0, 0);
+    entry = getSymbolTableEntry(structName, UDT);
 
     createUdtTableEntry(identifier, lineNumber);
     udt = getUdtTableEntry(identifier);
@@ -5027,10 +5032,14 @@ void gr_cstar() {
         syntaxErrorSymbol(SYM_IDENTIFIER);
     } else if (symbol == SYM_STRUCT) {
       entry = gr_struct(GLOBAL_TABLE, allocatedMemory, operandInfo);
-      if (entry->class == VARIABLE)
+
+      if (entry->class == VARIABLE) {
         // Stefan TODO: allocatedMemory = allocatedMemory + size_of(entry->type);
         // only pointer to struct for now
         allocatedMemory = allocatedMemory + size_of(SIZEOFSTRUCTSTAR);
+        //Stefan TODO: Remove memoryOffset from gr_struct? Its' wrongly used there anyway
+        entry->address = -allocatedMemory;
+      }
 
     } else {
       type = gr_type();
