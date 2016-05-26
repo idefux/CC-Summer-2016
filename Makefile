@@ -25,6 +25,12 @@ test: selfie
 	diff -q selfie1.m selfie3.m
 	diff -q selfie1.s selfie3.s
 
+# Test self-compilation, self-execution, and self-hosting
+short_test: selfie
+	./selfie -c selfie.c -o selfie1.m -s selfie1.s -m 2 -c selfie.c -o selfie2.m -s selfie2.s
+	diff -q selfie1.m selfie2.m
+	diff -q selfie1.s selfie2.s
+
 test_constant_folding: selfie
 	echo "int main() { return 6 * 7 + 17;}" > test_constant_folding_1.tmp
 	!(./selfie -c test_constant_folding_1.tmp -d 1 | grep -E 't[0-7]=6\s|t[0-7]=7\s|t[0-7]=17\s')
@@ -74,14 +80,48 @@ test_arrays: selfie
 
 # Test struct functionality
 test_struct: selfie
-	./selfie -c test/struct_global_declaration_1.c
+	./selfie -c selfie.c -o selfie1.m
+	./selfie -c test/struct_global_declaration_1.c -o test/struct_global_declaration_1a.m -s test/struct_global_declaration_1a.s
+	./selfie -l selfie1.m -m 2 -c test/struct_global_declaration_1.c -o test/struct_global_declaration_1b.m -s test/struct_global_declaration_1b.s
+	diff -q test/struct_global_declaration_1a.m test/struct_global_declaration_1b.m
+	diff -q test/struct_global_declaration_1a.s test/struct_global_declaration_1b.s
 	./selfie -c test/struct_global_declaration_2.c
+	./selfie -c test/struct_global_declaration_2.c -o test/struct_global_declaration_2a.m -s test/struct_global_declaration_2a.s
+	./selfie -l selfie1.m -m 2 -c test/struct_global_declaration_2.c -o test/struct_global_declaration_2b.m -s test/struct_global_declaration_2b.s
+	diff -q test/struct_global_declaration_2a.m test/struct_global_declaration_2b.m
+	diff -q test/struct_global_declaration_2a.s test/struct_global_declaration_2b.s
 	./selfie -c test/struct_local_declaration.c
+	./selfie -c test/struct_local_declaration.c -o test/struct_local_declarationa.m -s test/struct_local_declarationa.s
+	./selfie -l selfie1.m -m 2 -c test/struct_local_declaration.c -o test/struct_local_declarationb.m -s test/struct_local_declarationb.s
+	diff -q test/struct_global_declaration_1a.m test/struct_global_declaration_1b.m
+	diff -q test/struct_global_declaration_1a.s test/struct_global_declaration_1b.s
 	./selfie -c test/struct_pointer_function_argument.c
+	./selfie -c test/struct_pointer_function_argument.c -o test/struct_pointer_function_argumenta.m -s test/struct_pointer_function_argumenta.s
+	./selfie -l selfie1.m -m 2 -c test/struct_pointer_function_argument.c -o test/struct_pointer_function_argumentb.m -s test/struct_pointer_function_argumentb.s
+	diff -q test/struct_pointer_function_argumenta.m test/struct_pointer_function_argumentb.m
+	diff -q test/struct_pointer_function_argumenta.s test/struct_pointer_function_argumentb.s
 	./selfie -c test/struct_pointer_to_struct.c
+	./selfie -c test/struct_pointer_to_struct.c -o test/struct_pointer_to_structa.m -s test/struct_pointer_to_structa.s
+	./selfie -l selfie1.m -m 2 -c test/struct_pointer_to_struct.c -o test/struct_pointer_to_structb.m -s test/struct_pointer_to_structb.s
+	diff -q test/struct_pointer_to_structa.m test/struct_pointer_to_structb.m
+	diff -q test/struct_pointer_to_structa.s test/struct_pointer_to_structb.s
+	./selfie -c test/struct_access_assignment1.c
+	./selfie -c test/struct_access_assignment1.c -o test/struct_access_assignment1a.m -s test/struct_access_assignment1a.s
+	./selfie -l selfie1.m -m 2 -c test/struct_access_assignment1.c -o test/struct_access_assignment1b.m -s test/struct_access_assignment1b.s
+	diff -q test/struct_access_assignment1a.m test/struct_access_assignment1b.m
+	diff -q test/struct_access_assignment1a.s test/struct_access_assignment1b.s
+	rm -rf test/*.s
+	rm -rf test/*.m
+
+test_all: selfie
+	make test_constant_folding
+	make test_arrays
+	make test_struct
 
 # Clean up
 clean:
 	rm -rf *.m
 	rm -rf *.s
 	rm -rf selfie
+	rm -rf test/*.s
+	rm -rf test/*.m
