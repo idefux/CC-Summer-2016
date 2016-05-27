@@ -116,7 +116,7 @@ test_struct: selfie
 test_all: selfie
 	make test_constant_folding
 	make test_arrays
-	make test_struct
+	make -C test/struct
 
 # Clean up
 clean:
