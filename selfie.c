@@ -4651,8 +4651,10 @@ void gr_procedure(int *procedure, int returnType, int *operandInfo) {
 
         entry = gr_struct(LOCAL_TABLE, localVariables, operandInfo);
 
-        if (getClass(entry) == VARIABLE)
-          localVariables = localVariables + size_of(getType(entry)) / 4;
+        if (getClass(entry) == VARIABLE) {
+          localVariables = localVariables + 1;
+          setAddress(entry, -localVariables * WORDSIZE);
+        }
 
       } else {
 
@@ -4876,9 +4878,6 @@ int* gr_struct(int symbolTable, int addressOffset, int* operandInfo) {
     }
 
     setUdtSize(udt, offset + WORDSIZE);
-    print("Just created a UDT with size: ");
-    print(itoa(getUdtSize(udt), string_buffer, 10, 0, 0));
-    println();
 
     getSymbol();
 
@@ -5018,10 +5017,12 @@ void gr_cstar() {
         syntaxErrorSymbol(SYM_IDENTIFIER);
     } else if (symbol == SYM_STRUCT) {
       entry = gr_struct(GLOBAL_TABLE, allocatedMemory, operandInfo);
-      if (getClass(entry) == VARIABLE)
+      if (getClass(entry) == VARIABLE) {
         // Stefan TODO: allocatedMemory = allocatedMemory + size_of(getType(entry));
         // only pointer to struct for now
-        allocatedMemory = allocatedMemory + size_of(SIZEOFSTRUCTSTAR);
+        allocatedMemory = allocatedMemory + SIZEOFSTRUCTSTAR;
+        setAddress(entry, -allocatedMemory);
+      }
 
     } else {
       type = gr_type();
