@@ -10,7 +10,7 @@ addons:
   apt:
     packages:
     - gcc-multilib
-script: make test && make test_constant_folding && make test_arrays && make test_struct
+script: make test
 notifications:
   email: false
   slack:
