@@ -2682,11 +2682,12 @@ int* getVariable(int* variable) {
 int* getArray(int* array) {
   int* entry;
 
-  entry = getSymbolTableEntry(array, ARRAY);
+  entry = getSymbolTableEntry(array, VARIABLE);
+  //entry = getSymbolTableEntry(array, ARRAY);
 
   if (entry == (int*) 0) {
     // can also be defined as pointer and then malloc
-    entry = getSymbolTableEntry(array, VARIABLE);
+    entry = getSymbolTableEntry(array, ARRAY);
 
     if (entry == (int*) 0) {
       printLineNumber((int*) "error", lineNumber);
@@ -2704,6 +2705,9 @@ int* getArray(int* array) {
 int load_variable(int* variable) {
   int* entry;
 
+
+  // Stefan TODO: This here is totally non-performing.
+  // Check for class VARIABLE first and then array!
   entry = getArray(variable);
 
   talloc();
