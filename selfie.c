@@ -576,6 +576,7 @@ int* getArray(int* array);
 int  load_variable(int* variable);
 void load_integer(int value);
 void load_string(int* string);
+void load_array_address(int* entry, int dimensions);
 
 int  help_call_codegen(int* entry, int* procedure);
 void help_procedure_prologue(int localVariables);
@@ -2705,9 +2706,6 @@ int* getArray(int* array) {
 int load_variable(int* variable) {
   int* entry;
 
-
-  // Stefan TODO: This here is totally non-performing.
-  // Check for class VARIABLE first and then array!
   entry = getArray(variable);
 
   talloc();
@@ -2790,7 +2788,7 @@ void load_string(int* string) {
   emitIFormat(OP_ADDIU, REG_GP, currentTemporary(), -allocatedMemory);
 }
 
-void load_from_array(int* entry, int dimensions) {
+void load_array_address(int* entry, int dimensions) {
 
   if (dimensions == 2) {
     // sizeof(dimension2) * previousTemporary
@@ -3171,9 +3169,8 @@ int gr_factor(int *operandInfo) {
             // Load from array 2 dim
             entry = getArray(variableOrProcedureName);
 
-            load_from_array(entry, 2);
+            load_array_address(entry, 2);
 
-            //emitIFormat(OP_SW, previousTemporary(), currentTemporary(),0);
             emitIFormat(OP_LW, currentTemporary(), currentTemporary(), 0);
 
             getSymbol();
@@ -3187,9 +3184,8 @@ int gr_factor(int *operandInfo) {
 
           entry = getArray(variableOrProcedureName);
 
-          load_from_array(entry, 1);
+          load_array_address(entry, 1);
 
-          //emitIFormat(OP_SW, previousTemporary(), currentTemporary(),0);
           emitIFormat(OP_LW, currentTemporary(), currentTemporary(), 0);
 
           //tfree(1);
@@ -4249,7 +4245,7 @@ void gr_statement(int *operandInfo) {
 
           ltype = getType(entry);
 
-          load_from_array(entry, 2);
+          load_array_address(entry, 2);
 
           getSymbol();
 
@@ -4267,7 +4263,7 @@ void gr_statement(int *operandInfo) {
 
         ltype = getType(entry);
 
-        load_from_array(entry, 1);
+        load_array_address(entry, 1);
 
         getSymbol();
 
