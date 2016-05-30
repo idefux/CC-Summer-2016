@@ -40,7 +40,9 @@ simpleExpression = [ "-" ] term { ( "+" | "-" ) term } .
 
 extExpression    = simpleExpression { ( "<<" | ">>" ) simpleExpression } .
 
-expression       = extExpression [ ( "==" | "!=" | "<" | ">" | "<=" | ">=" ) extExpression ] .
+compExpression   = extExpression [ ( "==" | "!=" | "<" | ">" | "<=" | ">=" ) extExpression ] .
+
+expression       = compExpression { ( "&&" | "||" ) compExpression } .
 
 while            = "while" "(" expression ")"
                              ( statement |

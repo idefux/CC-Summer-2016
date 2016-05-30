@@ -148,6 +148,8 @@ int CHAR_SINGLEQUOTE  = 39; // ASCII code 39 = '
 int CHAR_DOUBLEQUOTE  = '"';
 int CHAR_LBRACKET     = '[';
 int CHAR_RBRACKET     = ']';
+int CHAR_AMPERSAND    = '&';
+int CHAR_VERTICALBAR  = '|';
 
 int SIZEOFINT        = 4; // must be the same as WORDSIZE
 int SIZEOFINTSTAR    = 4; // must be the same as WORDSIZE
@@ -257,7 +259,7 @@ void printSymbols();
 
 // ------------------------ GLOBAL CONSTANTS -----------------------
 
-int NUMBEROFSYMBOLS  = 34;
+int NUMBEROFSYMBOLS  = 36;
 
 int SYM_EOF          = -1; // end of file
 int SYM_IDENTIFIER   = 0;  // identifier
@@ -294,8 +296,10 @@ int SYM_LBRACKET     = 30; // [
 int SYM_RBRACKET     = 31; // ]
 int SYM_STRUCT       = 32; // STRUCT
 int SYM_STRUCTACCESS = 33; // ->
+int SYM_BOOLEANAND   = 34; // &&
+int SYM_BOOLEANOR    = 35; // ||
 
-int SYMBOLS[34][2]; // array of strings representing symbols
+int SYMBOLS[36][2]; // array of strings representing symbols
 
 int maxIdentifierLength = 64; // maximum number of characters in an identifier
 int maxIntegerLength    = 10; // maximum number of characters in an integer
@@ -367,6 +371,8 @@ void initScanner () {
   SYMBOLS[SYM_RBRACKET][0]     = (int) "]";
   SYMBOLS[SYM_STRUCT][0]       = (int) "struct";
   SYMBOLS[SYM_STRUCTACCESS][0] = (int) "->";
+  SYMBOLS[SYM_BOOLEANAND][0]   = (int) "&&";
+  SYMBOLS[SYM_BOOLEANOR][0]    = (int) "||";
 
   character = CHAR_EOF;
   symbol    = SYM_EOF;
@@ -563,6 +569,7 @@ int isStarOrDivOrModulo();
 int isPlusOrMinus();
 int isComparison();
 int isShiftLeftOrRight();
+int isBooleanOperator();
 
 int lookForFactor();
 int lookForStatement();
@@ -587,32 +594,33 @@ int  help_call_codegen(int* entry, int* procedure);
 void help_procedure_prologue(int localVariables);
 void help_procedure_epilogue(int parameters);
 
-int  isConstant(int *operandInfo);
-int  getOperandsValue(int *operandInfo);
-void setConstant(int *operandInfo);
-void unsetConstant(int *operandInfo);
-void setOperandsValue(int *operandInfo, int value);
+int  isConstant(int* operandInfo);
+int  getOperandsValue(int* operandInfo);
+void setConstant(int* operandInfo);
+void unsetConstant(int* operandInfo);
+void setOperandsValue(int* operandInfo, int value);
 void delayedLoading(int lIsConstant, int lValue, int rIsConstant, int rValue);
 
 void syntaxErrorField(int* udt, int* identifier);
 
-int  gr_call(int *procedure, int *operandInfo);
-int  gr_factor(int *operandInfo);
-int  gr_term(int *operandInfo);
-int  gr_simpleExpression(int *operandInfo);
-int  gr_extExpression(int *operandInfo);
-int  gr_expression(int *operandInfo);
-void gr_while(int *operandInfo);
-void gr_if(int *operandInfo);
-void gr_return(int returnType, int *operandInfo);
-void gr_statement(int *operandInfo);
+int  gr_call(int* procedure, int* operandInfo);
+int  gr_factor(int* operandInfo);
+int  gr_term(int* operandInfo);
+int  gr_simpleExpression(int* operandInfo);
+int  gr_extExpression(int* operandInfo);
+int  gr_expression(int* operandInfo);
+int  gr_newExpression(int* operandInfo);
+void gr_while(int* operandInfo);
+void gr_if(int* operandInfo);
+void gr_return(int returnType, int* operandInfo);
+void gr_statement(int* operandInfo);
 int  gr_type();
 int  gr_variable(int offset);
 int  gr_argument();
 //void gr_structIdentifier(int symbolTable);
 //void gr_structField(int* udt, int offset);
-void gr_initialization(int *name, int offset, int type);
-void gr_procedure(int *procedure, int returnType, int *operandInfo);
+void gr_initialization(int* name, int offset, int type);
+void gr_procedure(int* procedure, int returnType, int* operandInfo);
 int* gr_struct(int symbolTable, int addressOffset, int* operandInfo);
 void gr_arraySize(struct ArraySize* arraySize);
 // Stefan TODO: void gr_arrayIndex(int* operandInfo);
@@ -2174,6 +2182,26 @@ int getSymbol() {
 
         symbol = SYM_MOD;
 
+    } else if (character == CHAR_AMPERSAND) {
+      getCharacter();
+
+      if (character == CHAR_AMPERSAND)
+        getCharacter();
+      else
+        syntaxErrorCharacter(CHAR_AMPERSAND);
+
+      symbol = SYM_BOOLEANAND;
+
+    } else if (character == CHAR_VERTICALBAR) {
+      getCharacter();
+
+      if (character == CHAR_VERTICALBAR)
+        getCharacter();
+      else
+        syntaxErrorCharacter(CHAR_VERTICALBAR);
+
+      symbol = SYM_BOOLEANOR;
+
     } else {
         printLineNumber((int*) "error", lineNumber);
         print((int*) "found unknown character ");
@@ -2479,12 +2507,21 @@ int isComparison() {
 }
 
 int isShiftLeftOrRight() {
-    if (symbol == SYM_SHIFTLEFT)
-        return 1;
-    else if (symbol == SYM_SHIFTRIGHT)
-        return 1;
-    else
-        return 0;
+  if (symbol == SYM_SHIFTLEFT)
+      return 1;
+  else if (symbol == SYM_SHIFTRIGHT)
+      return 1;
+  else
+      return 0;
+}
+
+int isBooleanOperator() {
+  if (symbol == SYM_BOOLEANAND)
+    return 1;
+  else if (symbol == SYM_BOOLEANOR)
+    return 1;
+  else
+    return 0;
 }
 
 int lookForFactor() {
@@ -2917,23 +2954,23 @@ void help_procedure_epilogue(int parameters) {
   emitRFormat(OP_SPECIAL, REG_RA, 0, 0, FCT_JR);
 }
 
-int isConstant(int *operandInfo) {
+int isConstant(int* operandInfo) {
   return (*operandInfo == CONSTANT);
 }
 
-int getOperandsValue(int *operandInfo) {
+int getOperandsValue(int* operandInfo) {
   return *(operandInfo + 1);
 }
 
-void setConstant(int *operandInfo) {
+void setConstant(int* operandInfo) {
   *operandInfo = CONSTANT;
 }
 
-void unsetConstant(int *operandInfo) {
+void unsetConstant(int* operandInfo) {
   *operandInfo = NONCONSTANT;
 }
 
-void setOperandsValue(int *operandInfo, int value) {
+void setOperandsValue(int* operandInfo, int value) {
   *(operandInfo + 1) = value;
 }
 
@@ -2970,8 +3007,8 @@ void syntaxErrorField(int* udt, int* identifier) {
 
 }
 
-int gr_call(int *procedure, int *operandInfo) {
-  int *entry;
+int gr_call(int* procedure, int* operandInfo) {
+  int* entry;
   int numberOfTemporaries;
   int type;
 
@@ -3039,13 +3076,13 @@ int gr_call(int *procedure, int *operandInfo) {
   return type;
 }
 
-int gr_factor(int *operandInfo) {
+int gr_factor(int* operandInfo) {
   int hasCast;
   int cast;
   int type;
   int* entry;
 
-  int *variableOrProcedureName;
+  int* variableOrProcedureName;
 
   int itype;
 
@@ -3312,7 +3349,7 @@ int fold_term(int lValue, int rValue, int ltype, int rtype, int operatorSymbol, 
   return ltype;
 }
 
-int gr_term(int *operandInfo) {
+int gr_term(int* operandInfo) {
   int ltype;
   int operatorSymbol;
   int rtype;
@@ -3481,7 +3518,7 @@ int fold_simpleExpression(int lValue, int rValue, int ltype, int rtype, int oper
   return ltype;
 }
 
-int gr_simpleExpression(int *operandInfo) {
+int gr_simpleExpression(int* operandInfo) {
   int sign;
   int ltype;
   int operatorSymbol;
@@ -3674,7 +3711,7 @@ int fold_extExpression(int lValue, int rValue, int ltype, int rtype, int operato
   return ltype;
 }
 
-int gr_extExpression(int *operandInfo) {
+int gr_extExpression(int* operandInfo) {
   int ltype;
   int operatorSymbol;
   int rtype;
@@ -3784,7 +3821,7 @@ int gr_extExpression(int *operandInfo) {
   return ltype;
 }
 
-int gr_expression(int *operandInfo) {
+int gr_expression(int* operandInfo) {
   int ltype;
   int operatorSymbol;
   int rtype;
@@ -3920,7 +3957,143 @@ int gr_expression(int *operandInfo) {
   return ltype;
 }
 
-void gr_while(int *operandInfo) {
+int gr_newExpression(int* operandInfo) {
+  int ltype;
+  int operatorSymbol;
+  int rtype;
+  int lIsConstant;
+  int lValue;
+  int rIsConstant;
+  int rValue;
+
+  // assert: n = allocatedTemporaries
+
+  ltype = gr_extExpression(operandInfo);
+
+  lIsConstant = isConstant(operandInfo);
+  lValue = getOperandsValue(operandInfo);
+
+  // assert: allocatedTemporaries == n + 1 or n
+
+  //optional: ==, !=, <, >, <=, >= extExpression
+  if (isComparison()) {
+    operatorSymbol = symbol;
+
+    getSymbol();
+
+    rtype = gr_extExpression(operandInfo);
+
+    rIsConstant = isConstant(operandInfo);
+    rValue = getOperandsValue(operandInfo);
+
+    // assert: allocatedTemporaries == n + 2
+
+    if (ltype != rtype)
+      typeWarning(ltype, rtype);
+
+    if (and(lIsConstant, rIsConstant)) {
+
+      if (operatorSymbol == SYM_EQUALITY)
+        lValue = (lValue == rValue);
+
+      else if (operatorSymbol == SYM_NOTEQ)
+        lValue = (lValue != rValue);
+
+      else if (operatorSymbol == SYM_LT)
+        lValue = (lValue < rValue);
+
+      else if (operatorSymbol == SYM_GT)
+        lValue = (lValue > rValue);
+
+      else if (operatorSymbol == SYM_LEQ)
+        lValue = (lValue <= rValue);
+
+      else if (operatorSymbol == SYM_GEQ)
+        lValue = (lValue >= rValue);
+
+      talloc();
+      emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), lValue);
+
+      unsetConstant(operandInfo);
+
+    } else {
+      unsetConstant(operandInfo);
+      delayedLoading(lIsConstant, lValue, rIsConstant, rValue);
+
+      if (operatorSymbol == SYM_EQUALITY) {
+
+        // subtract, if result = 0 then 1, else 0
+        emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SUBU);
+
+        tfree(1);
+
+        emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), 4);
+        emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 0);
+        emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), 2);
+        emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 1);
+
+      } else if (operatorSymbol == SYM_NOTEQ) {
+
+        // subtract, if result = 0 then 0, else 1
+        emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SUBU);
+
+        tfree(1);
+
+        emitIFormat(OP_BNE, REG_ZR, currentTemporary(), 4);
+        emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 0);
+        emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), 2);
+        emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 1);
+
+      } else if (operatorSymbol == SYM_LT) {
+
+        // set to 1 if a < b, else 0
+        emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SLT);
+
+        tfree(1);
+
+      } else if (operatorSymbol == SYM_GT) {
+
+        // set to 1 if b < a, else 0
+        emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_SLT);
+
+        tfree(1);
+
+      } else if (operatorSymbol == SYM_LEQ) {
+
+        // if b < a set 0, else 1
+        emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_SLT);
+
+        tfree(1);
+
+        emitIFormat(OP_BNE, REG_ZR, currentTemporary(), 4);
+        emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 1);
+        emitIFormat(OP_BEQ, REG_ZR, REG_ZR, 2);
+        emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 0);
+
+      } else if (operatorSymbol == SYM_GEQ) {
+
+        // if a < b set 0, else 1
+        emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SLT);
+
+        tfree(1);
+
+        emitIFormat(OP_BNE, REG_ZR, currentTemporary(), 4);
+        emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 1);
+        emitIFormat(OP_BEQ, REG_ZR, REG_ZR, 2);
+        emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 0);
+      }
+    }
+  } else {
+    delayedLoading(lIsConstant, lValue, 0, 0);
+    unsetConstant(operandInfo);
+  }
+
+  // assert: allocatedTemporaries == n + 1
+
+  return ltype;
+}
+
+void gr_while(int* operandInfo) {
   int brBackToWhile;
   int brForwardToEnd;
 
@@ -3985,7 +4158,7 @@ void gr_while(int *operandInfo) {
   // assert: allocatedTemporaries == 0
 }
 
-void gr_if(int *operandInfo) {
+void gr_if(int* operandInfo) {
   int brForwardToElseOrEnd;
   int brForwardToEnd;
 
@@ -4074,7 +4247,7 @@ void gr_if(int *operandInfo) {
   // assert: allocatedTemporaries == 0
 }
 
-void gr_return(int returnType, int *operandInfo) {
+void gr_return(int returnType, int* operandInfo) {
   int type;
 
   // assert: allocatedTemporaries == 0
@@ -4110,11 +4283,11 @@ void gr_return(int returnType, int *operandInfo) {
   // assert: allocatedTemporaries == 0
 }
 
-void gr_statement(int *operandInfo) {
+void gr_statement(int* operandInfo) {
   int ltype;
   int rtype;
-  int *variableOrProcedureName;
-  int *entry;
+  int* variableOrProcedureName;
+  int* entry;
   int itype;
 
   // assert: allocatedTemporaries == 0;
@@ -4566,12 +4739,12 @@ void gr_initialization(int* name, int offset, int type) {
   createSymbolTableEntry(GLOBAL_TABLE, name, actualLineNumber, VARIABLE, type, initialValue, offset, 0, 0);
 }
 
-void gr_procedure(int *procedure, int returnType, int *operandInfo) {
+void gr_procedure(int* procedure, int returnType, int* operandInfo) {
   int numberOfParameters;
   int parameters;
   int localVariables;
   int functionStart;
-  int *entry;
+  int* entry;
   int type;
   int arraySize1;
   int arraySize2;
@@ -4936,8 +5109,8 @@ int gr_structAccess() {
 
 void gr_cstar() {
   int type;
-  int *variableOrProcedureName;
-  int *operandInfo;
+  int* variableOrProcedureName;
+  int* operandInfo;
   struct ArraySize* arraySize;
   int* entry;
 
