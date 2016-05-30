@@ -80,38 +80,7 @@ test_arrays: selfie
 
 # Test struct functionality
 test_struct: selfie
-	./selfie -c selfie.c -o selfie1.m
-	./selfie -c test/struct_global_declaration_1.c -o test/struct_global_declaration_1a.m -s test/struct_global_declaration_1a.s
-	./selfie -l selfie1.m -m 2 -c test/struct_global_declaration_1.c -o test/struct_global_declaration_1b.m -s test/struct_global_declaration_1b.s
-	diff -q test/struct_global_declaration_1a.m test/struct_global_declaration_1b.m
-	diff -q test/struct_global_declaration_1a.s test/struct_global_declaration_1b.s
-	./selfie -c test/struct_global_declaration_2.c
-	./selfie -c test/struct_global_declaration_2.c -o test/struct_global_declaration_2a.m -s test/struct_global_declaration_2a.s
-	./selfie -l selfie1.m -m 2 -c test/struct_global_declaration_2.c -o test/struct_global_declaration_2b.m -s test/struct_global_declaration_2b.s
-	diff -q test/struct_global_declaration_2a.m test/struct_global_declaration_2b.m
-	diff -q test/struct_global_declaration_2a.s test/struct_global_declaration_2b.s
-	./selfie -c test/struct_local_declaration.c
-	./selfie -c test/struct_local_declaration.c -o test/struct_local_declarationa.m -s test/struct_local_declarationa.s
-	./selfie -l selfie1.m -m 2 -c test/struct_local_declaration.c -o test/struct_local_declarationb.m -s test/struct_local_declarationb.s
-	diff -q test/struct_global_declaration_1a.m test/struct_global_declaration_1b.m
-	diff -q test/struct_global_declaration_1a.s test/struct_global_declaration_1b.s
-	./selfie -c test/struct_pointer_function_argument.c
-	./selfie -c test/struct_pointer_function_argument.c -o test/struct_pointer_function_argumenta.m -s test/struct_pointer_function_argumenta.s
-	./selfie -l selfie1.m -m 2 -c test/struct_pointer_function_argument.c -o test/struct_pointer_function_argumentb.m -s test/struct_pointer_function_argumentb.s
-	diff -q test/struct_pointer_function_argumenta.m test/struct_pointer_function_argumentb.m
-	diff -q test/struct_pointer_function_argumenta.s test/struct_pointer_function_argumentb.s
-	./selfie -c test/struct_pointer_to_struct.c
-	./selfie -c test/struct_pointer_to_struct.c -o test/struct_pointer_to_structa.m -s test/struct_pointer_to_structa.s
-	./selfie -l selfie1.m -m 2 -c test/struct_pointer_to_struct.c -o test/struct_pointer_to_structb.m -s test/struct_pointer_to_structb.s
-	diff -q test/struct_pointer_to_structa.m test/struct_pointer_to_structb.m
-	diff -q test/struct_pointer_to_structa.s test/struct_pointer_to_structb.s
-	./selfie -c test/struct_access_assignment1.c
-	./selfie -c test/struct_access_assignment1.c -o test/struct_access_assignment1a.m -s test/struct_access_assignment1a.s
-	./selfie -l selfie1.m -m 2 -c test/struct_access_assignment1.c -o test/struct_access_assignment1b.m -s test/struct_access_assignment1b.s
-	diff -q test/struct_access_assignment1a.m test/struct_access_assignment1b.m
-	diff -q test/struct_access_assignment1a.s test/struct_access_assignment1b.s
-	rm -rf test/*.s
-	rm -rf test/*.m
+	make -C test/struct
 
 test_all: selfie
 	make test_constant_folding

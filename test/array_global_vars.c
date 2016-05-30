@@ -1,3 +1,4 @@
+int x;
 int array1[10];
 // declare array as global variable
 // array size must be constant

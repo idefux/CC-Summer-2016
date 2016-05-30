@@ -551,6 +551,11 @@ void resetSymbolTables() {
 // ---------------------------- PARSER -----------------------------
 // -----------------------------------------------------------------
 
+struct ArraySize {
+  int dimension1;
+  int dimension2;
+};
+
 int isNotRbraceOrEOF();
 int isExpression();
 int isLiteral();
@@ -609,7 +614,7 @@ int  gr_argument();
 void gr_initialization(int *name, int offset, int type);
 void gr_procedure(int *procedure, int returnType, int *operandInfo);
 int* gr_struct(int symbolTable, int addressOffset, int* operandInfo);
-void gr_arraySize(int* arraySize1, int* arraySize2);
+void gr_arraySize(struct ArraySize* arraySize);
 // Stefan TODO: void gr_arrayIndex(int* operandInfo);
 int gr_structAccess();
 void gr_cstar();
@@ -4383,14 +4388,26 @@ int gr_type() {
 
 int gr_variable(int offset) {
   int type;
+  struct ArraySize* arraySize;
+  int variableSize;
+
+  arraySize = (struct ArraySize*) malloc(2 * SIZEOFINT);
 
   type = gr_type();
 
   if (symbol == SYM_IDENTIFIER) {
-
-    createSymbolTableEntry(LOCAL_TABLE, identifier, lineNumber, VARIABLE, type, 0, offset, 0, 0);
-
     getSymbol();
+
+    if (symbol == SYM_LBRACKET) {
+      gr_arraySize(arraySize);
+      variableSize = size_of_array(arraySize->dimension1, arraySize->dimension2, type);
+      createSymbolTableEntry(LOCAL_TABLE, identifier, lineNumber, ARRAY, type, 0, offset - variableSize, arraySize->dimension1, arraySize->dimension2);
+
+    } else {
+      variableSize = size_of(type);
+      createSymbolTableEntry(LOCAL_TABLE, identifier, lineNumber, VARIABLE, type, 0, offset - variableSize, 0, 0);
+
+    }
 
   } else {
     syntaxErrorSymbol(SYM_IDENTIFIER);
@@ -4398,7 +4415,7 @@ int gr_variable(int offset) {
     createSymbolTableEntry(LOCAL_TABLE, (int*) "missing variable name", lineNumber, VARIABLE, type, 0, offset, 0, 0);
   }
 
-  return type;
+  return variableSize / WORDSIZE;
 }
 
 int gr_argument() {
@@ -4558,6 +4575,7 @@ void gr_procedure(int *procedure, int returnType, int *operandInfo) {
   int type;
   int arraySize1;
   int arraySize2;
+  int numberVariables;
 
   currentProcedureName = procedure;
 
@@ -4657,78 +4675,14 @@ void gr_procedure(int *procedure, int returnType, int *operandInfo) {
         }
 
       } else {
+        numberVariables = gr_variable(-localVariables * WORDSIZE);
 
-        localVariables = localVariables + 1;
+        localVariables = localVariables + numberVariables;
 
-        type = gr_variable(-localVariables * WORDSIZE);
-
-        if (symbol == SYM_SEMICOLON)
-          getSymbol();
-        else if (symbol == SYM_LBRACKET) {
+        if (symbol == SYM_SEMICOLON) {
           getSymbol();
 
-          if (symbol == SYM_INTEGER) {
-            if (literal > 0)
-              arraySize1 = literal;
-            //else
-              // TODO: fire error
-
-            localVariables = localVariables + (arraySize1 - 1);
-            // fix symbolTableEntry
-            entry = getSymbolTableEntry(identifier, VARIABLE);
-            setClass(entry, ARRAY);
-            setAddress(entry, -localVariables * WORDSIZE);
-            setSize1(entry, arraySize1);
-
-          } else
-            syntaxErrorSymbol(SYM_INTEGER);
-
-          getSymbol();
-
-          if (symbol == SYM_RBRACKET) {
-            getSymbol();
-
-            if (symbol == SYM_LBRACKET) {
-              getSymbol();
-
-              if (symbol == SYM_INTEGER) {
-                if (literal > 0)
-                  arraySize2 = literal;
-                //else
-                  // TODO: fire error
-
-                // fix symbolTableEntry
-                localVariables = localVariables + (arraySize1 - 1) * arraySize2;
-                setAddress(entry, -localVariables * WORDSIZE);
-                setSize2(entry, arraySize2);
-
-              } else
-                syntaxErrorSymbol(SYM_INTEGER);
-
-              getSymbol();
-
-              if (symbol == SYM_RBRACKET) {
-                getSymbol();
-
-                if (symbol == SYM_SEMICOLON) {
-                  getSymbol();
-
-                } else
-                  syntaxErrorSymbol(SYM_SEMICOLON);
-
-              } else
-                syntaxErrorSymbol(SYM_RBRACKET);
-
-
-            } else if (symbol == SYM_SEMICOLON)
-              getSymbol();
-            else
-              syntaxErrorSymbol(SYM_SEMICOLON);
-          } else
-            syntaxErrorSymbol(SYM_RBRACKET);
-
-        }
-        else
+        } else
           syntaxErrorSymbol(SYM_SEMICOLON);
       }
     }
@@ -4768,13 +4722,11 @@ int* gr_struct(int symbolTable, int addressOffset, int* operandInfo) {
   int* udt;
   int* entry;
   int offset;
-  int* arraySize1;
-  int* arraySize2;
+  struct ArraySize* arraySize;
   int* variableOrProcedureName;
   int* structName;
 
-  arraySize1 = malloc(1 * SIZEOFINT);
-  arraySize2 = malloc(1 * SIZEOFINT);
+  arraySize = (struct ArraySize*) malloc(2 * SIZEOFINT);
 
   // assert: current symbol == "struct"
   // assert: allocatedTemporaries == 0
@@ -4804,6 +4756,7 @@ int* gr_struct(int symbolTable, int addressOffset, int* operandInfo) {
 
   // variable definition, type: struct identifier *
   } else if (symbol == SYM_ASTERISK) {
+
 
     udt = getUdtTableEntry(identifier);
     if (udt == (int*) 0) {
@@ -4864,11 +4817,11 @@ int* gr_struct(int symbolTable, int addressOffset, int* operandInfo) {
         syntaxErrorSymbol(SYM_IDENTIFIER);
 
       if (symbol == SYM_LBRACKET)
-        gr_arraySize(arraySize1, arraySize2);
+        gr_arraySize(arraySize);
 
       if (symbol == SYM_SEMICOLON) {
         createFieldEntry(identifier, udt, lineNumber, type, offset);
-        offset = offset + size_of_array(*arraySize1, *arraySize2, type);
+        offset = offset + size_of_array(arraySize->dimension1, arraySize->dimension2, type);
 
         getSymbol();
 
@@ -4895,15 +4848,15 @@ int* gr_struct(int symbolTable, int addressOffset, int* operandInfo) {
   return entry;
 }
 
-void gr_arraySize(int* arraySize1, int* arraySize2) {
-  *arraySize1 = 0;
-  *arraySize2 = 0;
+void gr_arraySize(struct ArraySize* arraySize) {
+  arraySize->dimension1 = 0;
+  arraySize->dimension2 = 0;
 
   getSymbol();
 
   if (symbol == SYM_INTEGER) {
     if (literal > 0)
-      *arraySize1 = literal;
+      arraySize->dimension1 = literal;
     //else
       // TODO: fire error
   } else
@@ -4922,7 +4875,7 @@ void gr_arraySize(int* arraySize1, int* arraySize2) {
 
     if (symbol == SYM_INTEGER) {
       if (literal > 0)
-        *arraySize2 = literal;
+        arraySize->dimension2 = literal;
       //else
         // TODO: fire error
     } else
@@ -4985,11 +4938,11 @@ void gr_cstar() {
   int type;
   int *variableOrProcedureName;
   int *operandInfo;
-  int arraySize1;
-  int arraySize2;
+  struct ArraySize* arraySize;
   int* entry;
 
   operandInfo = malloc(2 * SIZEOFINT);
+  arraySize = (struct ArraySize*) malloc(2 * SIZEOFINT);
 
   while (symbol != SYM_EOF) {
     while (lookForType()) {
@@ -5035,77 +4988,30 @@ void gr_cstar() {
         // type identifier "(" procedure declaration or definition
         if (symbol == SYM_LPARENTHESIS)
           gr_procedure(variableOrProcedureName, type, operandInfo);
-        else {
-
-          allocatedMemory = allocatedMemory + WORDSIZE;
-
           // type identifier ";" global variable declaration
+        else if (symbol == SYM_SEMICOLON) {
+          allocatedMemory = allocatedMemory + WORDSIZE;
+          createSymbolTableEntry(GLOBAL_TABLE, variableOrProcedureName, lineNumber, VARIABLE, type, 0, -allocatedMemory, 0, 0);
+
+          getSymbol();
+
+        // type identifier[arraySize] => array declaration
+        } else if (symbol == SYM_LBRACKET) {
+          gr_arraySize(arraySize);
+
           if (symbol == SYM_SEMICOLON) {
-            createSymbolTableEntry(GLOBAL_TABLE, variableOrProcedureName, lineNumber, VARIABLE, type, 0, -allocatedMemory, 0, 0);
+            allocatedMemory = allocatedMemory + size_of_array(arraySize->dimension1, arraySize->dimension2, type);
+            createSymbolTableEntry(GLOBAL_TABLE, variableOrProcedureName, lineNumber, ARRAY, type, 0, -allocatedMemory, arraySize->dimension1, arraySize->dimension2);
 
             getSymbol();
 
-          // type identifier[size] = array declaration
-          } else if (symbol == SYM_LBRACKET) {
-
-            getSymbol();
-
-            if (symbol == SYM_INTEGER) {
-              if (literal > 0)
-                arraySize1 = literal;
-              //else
-                // TODO: fire error
-            } else
-              syntaxErrorSymbol(SYM_INTEGER);
-
-            getSymbol();
-
-            if (symbol == SYM_RBRACKET) {
-              getSymbol();
-
-              if (symbol == SYM_LBRACKET) {
-                getSymbol();
-
-                if (symbol == SYM_INTEGER) {
-                  if (literal > 0)
-                    arraySize2 = literal;
-                  //else
-                    // TODO: fire error
-                } else
-                  syntaxErrorSymbol(SYM_INTEGER);
-
-                getSymbol();
-
-                if (symbol == SYM_RBRACKET) {
-                  getSymbol();
-
-                  if (symbol == SYM_SEMICOLON) {
-                    allocatedMemory = allocatedMemory + (arraySize1 * arraySize2 - 1) * WORDSIZE;
-
-                    createSymbolTableEntry(GLOBAL_TABLE, variableOrProcedureName, lineNumber, ARRAY, type, 0, -allocatedMemory, arraySize1, arraySize2);
-
-                    getSymbol();
-                  } else
-                    syntaxErrorSymbol(SYM_SEMICOLON);
-
-                } else
-                  syntaxErrorSymbol(SYM_RBRACKET);
-
-              } else if (symbol == SYM_SEMICOLON) {
-                allocatedMemory = allocatedMemory + (arraySize1 - 1) * WORDSIZE;
-
-                createSymbolTableEntry(GLOBAL_TABLE, variableOrProcedureName, lineNumber, ARRAY, type, 0, -allocatedMemory, arraySize1, 1);
-
-                getSymbol();
-
-              } else
-                syntaxErrorSymbol(SYM_SEMICOLON);
-            } else
-              syntaxErrorSymbol(SYM_RBRACKET);
-
-          // type identifier "=" global variable definition
           } else
-            gr_initialization(variableOrProcedureName, -allocatedMemory, type);
+            syntaxErrorSymbol(SYM_SEMICOLON);
+
+        // type identifier "=" global variable definition
+        } else {
+          allocatedMemory = allocatedMemory + WORDSIZE;
+          gr_initialization(variableOrProcedureName, -allocatedMemory, type);
         }
       } else
         syntaxErrorSymbol(SYM_IDENTIFIER);
@@ -5574,7 +5480,8 @@ void emitGlobalsStrings() {
     } else if (getClass(entry) == STRING)
       binaryLength = copyStringToBinary(getString(entry), binaryLength);
     else if (getClass(entry) == ARRAY)
-      binaryLength =  binaryLength + getSize1(entry) * getSize2(entry) * WORDSIZE;
+      binaryLength =  binaryLength + size_of_array(getSize1(entry), getSize2(entry), getType(entry));
+
 
     entry = getNextEntry(entry);
   }

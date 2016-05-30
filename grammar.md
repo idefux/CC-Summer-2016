@@ -62,14 +62,16 @@ statement        = ( [ "*" ] identifier [ arrayIndex ] [ structAccess ] | "*" "(
                     if |
                     return ";" .
 
-variable         = type identifier [ arrayIndex ] [ structAccess ] .
+variable         = type identifier [ arraySize ] [ structAccess ] .
 
 procedure        = "(" [ variable { "," variable } ] ")"
                     ( ";" | "{" { ( variable | struct ) ";" } { statement } "}" ) .
 
-structAccess   = "->" identifier [ arrayIndex ] [structAccess]
+structAccess     = "->" identifier [ arrayIndex ] [structAccess]
 
-arrayIndex    = "[" expression "]" [ "[" expression "]" ]
+arrayIndex       = "[" expression "]" [ "[" expression "]" ]
+
+arraySize        = "[" literal "]" [ "[" literal "]"]
 
 struct           = "struct" identifier "{" variable ";" { variable ";" } "}" .
 
