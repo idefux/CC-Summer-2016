@@ -259,7 +259,7 @@ void printSymbols();
 
 // ------------------------ GLOBAL CONSTANTS -----------------------
 
-int NUMBEROFSYMBOLS  = 36;
+int NUMBEROFSYMBOLS  = 37;
 
 int SYM_EOF          = -1; // end of file
 int SYM_IDENTIFIER   = 0;  // identifier
@@ -296,10 +296,11 @@ int SYM_LBRACKET     = 30; // [
 int SYM_RBRACKET     = 31; // ]
 int SYM_STRUCT       = 32; // STRUCT
 int SYM_STRUCTACCESS = 33; // ->
-int SYM_BOOLEANAND   = 34; // &&
-int SYM_BOOLEANOR    = 35; // ||
+int SYM_LOGICALAND   = 34; // &&
+int SYM_LOGICALOR    = 35; // ||
+int SYM_LOGICALNOT   = 36; // !
 
-int SYMBOLS[36][2]; // array of strings representing symbols
+int SYMBOLS[37][2]; // array of strings representing symbols
 
 int maxIdentifierLength = 64; // maximum number of characters in an identifier
 int maxIntegerLength    = 10; // maximum number of characters in an integer
@@ -371,8 +372,9 @@ void initScanner () {
   SYMBOLS[SYM_RBRACKET][0]     = (int) "]";
   SYMBOLS[SYM_STRUCT][0]       = (int) "struct";
   SYMBOLS[SYM_STRUCTACCESS][0] = (int) "->";
-  SYMBOLS[SYM_BOOLEANAND][0]   = (int) "&&";
-  SYMBOLS[SYM_BOOLEANOR][0]    = (int) "||";
+  SYMBOLS[SYM_LOGICALAND][0]   = (int) "&&";
+  SYMBOLS[SYM_LOGICALOR][0]    = (int) "||";
+  SYMBOLS[SYM_LOGICALNOT][0]   = (int) "!";
 
   character = CHAR_EOF;
   symbol    = SYM_EOF;
@@ -2190,7 +2192,7 @@ int getSymbol() {
       else
         syntaxErrorCharacter(CHAR_AMPERSAND);
 
-      symbol = SYM_BOOLEANAND;
+      symbol = SYM_LOGICALAND;
 
     } else if (character == CHAR_VERTICALBAR) {
       getCharacter();
@@ -2200,7 +2202,12 @@ int getSymbol() {
       else
         syntaxErrorCharacter(CHAR_VERTICALBAR);
 
-      symbol = SYM_BOOLEANOR;
+      symbol = SYM_LOGICALOR;
+
+    } else if (character == CHAR_EXCLAMATION) {
+      getCharacter();
+
+      symbol = SYM_LOGICALNOT;
 
     } else {
         printLineNumber((int*) "error", lineNumber);
@@ -2516,9 +2523,9 @@ int isShiftLeftOrRight() {
 }
 
 int isBooleanOperator() {
-  if (symbol == SYM_BOOLEANAND)
+  if (symbol == SYM_LOGICALAND)
     return 1;
-  else if (symbol == SYM_BOOLEANOR)
+  else if (symbol == SYM_LOGICALOR)
     return 1;
   else
     return 0;
@@ -3957,6 +3964,38 @@ int gr_expression(int* operandInfo) {
   return ltype;
 }
 
+int emit_BooleanExpression(ltype, rtype, operatorSymbol) {
+  if (ltype != INT_T)
+    typeWarning(INT_T, ltype);
+
+  if (rtype != INT_T)
+    typeWarning(INT_T, rtype);
+
+  if (operatorSymbol == SYM_LOGICALAND) {
+    // left = previousTemporary
+    // right = currentTemporary
+
+    emitRFormat(OP_SPECIAL, REG_ZR, previousTemporary(), previousTemporary(), FCT_SLT);
+    emitRFormat(OP_SPECIAL, REG_ZR, currentTemporary(), currentTemporary(), FCT_SLT);
+
+    emitIFormat(OP_BEQ, REG_ZR, previousTemporary(), 4);
+
+    emitIFormat(OP_BNE, REG_ZR, currentTemporary(), 2);
+
+    emitIFormat(OP_ADDIU, REG_ZR, previousTemporary(), 0);
+
+  } else if (operatorSymbol == SYM_LOGICALOR) {
+    emitRFormat(OP_SPECIAL, REG_ZR, previousTemporary(), previousTemporary(), FCT_SLT);
+    emitRFormat(OP_SPECIAL, REG_ZR, currentTemporary(), currentTemporary(), FCT_SLT);
+
+    // Stefan TODO: Hier fortsetzen
+  }
+
+  tfree(1);
+
+  return ltype;
+}
+
 int gr_newExpression(int* operandInfo) {
   int ltype;
   int operatorSymbol;
@@ -3975,9 +4014,13 @@ int gr_newExpression(int* operandInfo) {
 
   // assert: allocatedTemporaries == n + 1 or n
 
-  //optional: ==, !=, <, >, <=, >= extExpression
-  if (isComparison()) {
+  //optional: && ,|| extExpression
+  if (isBooleanOperator()) {
     operatorSymbol = symbol;
+
+    // Stefan, TODO: Check here
+    // a && -> a == FALSE => LOAD FALSE and break
+    // a || -> a == TRUE => LOAD TRUE and break
 
     getSymbol();
 
@@ -3991,101 +4034,6 @@ int gr_newExpression(int* operandInfo) {
     if (ltype != rtype)
       typeWarning(ltype, rtype);
 
-    if (and(lIsConstant, rIsConstant)) {
-
-      if (operatorSymbol == SYM_EQUALITY)
-        lValue = (lValue == rValue);
-
-      else if (operatorSymbol == SYM_NOTEQ)
-        lValue = (lValue != rValue);
-
-      else if (operatorSymbol == SYM_LT)
-        lValue = (lValue < rValue);
-
-      else if (operatorSymbol == SYM_GT)
-        lValue = (lValue > rValue);
-
-      else if (operatorSymbol == SYM_LEQ)
-        lValue = (lValue <= rValue);
-
-      else if (operatorSymbol == SYM_GEQ)
-        lValue = (lValue >= rValue);
-
-      talloc();
-      emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), lValue);
-
-      unsetConstant(operandInfo);
-
-    } else {
-      unsetConstant(operandInfo);
-      delayedLoading(lIsConstant, lValue, rIsConstant, rValue);
-
-      if (operatorSymbol == SYM_EQUALITY) {
-
-        // subtract, if result = 0 then 1, else 0
-        emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SUBU);
-
-        tfree(1);
-
-        emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), 4);
-        emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 0);
-        emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), 2);
-        emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 1);
-
-      } else if (operatorSymbol == SYM_NOTEQ) {
-
-        // subtract, if result = 0 then 0, else 1
-        emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SUBU);
-
-        tfree(1);
-
-        emitIFormat(OP_BNE, REG_ZR, currentTemporary(), 4);
-        emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 0);
-        emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), 2);
-        emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 1);
-
-      } else if (operatorSymbol == SYM_LT) {
-
-        // set to 1 if a < b, else 0
-        emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SLT);
-
-        tfree(1);
-
-      } else if (operatorSymbol == SYM_GT) {
-
-        // set to 1 if b < a, else 0
-        emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_SLT);
-
-        tfree(1);
-
-      } else if (operatorSymbol == SYM_LEQ) {
-
-        // if b < a set 0, else 1
-        emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_SLT);
-
-        tfree(1);
-
-        emitIFormat(OP_BNE, REG_ZR, currentTemporary(), 4);
-        emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 1);
-        emitIFormat(OP_BEQ, REG_ZR, REG_ZR, 2);
-        emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 0);
-
-      } else if (operatorSymbol == SYM_GEQ) {
-
-        // if a < b set 0, else 1
-        emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_SLT);
-
-        tfree(1);
-
-        emitIFormat(OP_BNE, REG_ZR, currentTemporary(), 4);
-        emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 1);
-        emitIFormat(OP_BEQ, REG_ZR, REG_ZR, 2);
-        emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 0);
-      }
-    }
-  } else {
-    delayedLoading(lIsConstant, lValue, 0, 0);
-    unsetConstant(operandInfo);
   }
 
   // assert: allocatedTemporaries == n + 1

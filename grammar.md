@@ -27,9 +27,8 @@ call             = identifier "(" [ expression { "," expression } ] ")" .
 
 literal          = integer | "'" ascii_character "'" .
 
-factor           = [ cast ]
-                    ( [ "*" ] ( identifier [ arryIndex ] [ structAccess ] |
-                      "(" expression ")" ) |
+factor           = [ cast ] [ "!" ]
+                    ( [ "*" ] ( identifier [ arryIndex ] [ structAccess ] | " expression ")" ) |
                       call |
                       literal |
                       """ { ascii_character } """ ) .
@@ -42,7 +41,7 @@ extExpression    = simpleExpression { ( "<<" | ">>" ) simpleExpression } .
 
 compExpression   = extExpression [ ( "==" | "!=" | "<" | ">" | "<=" | ">=" ) extExpression ] .
 
-expression       = compExpression { ( "&&" | "||" ) compExpression } .
+expression       = compExpression [ ( "&&" | "||" ) compExpression ] .
 
 while            = "while" "(" expression ")"
                              ( statement |
