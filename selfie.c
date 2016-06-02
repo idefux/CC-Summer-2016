@@ -610,8 +610,8 @@ int  gr_factor(int* operandInfo);
 int  gr_term(int* operandInfo);
 int  gr_simpleExpression(int* operandInfo);
 int  gr_extExpression(int* operandInfo);
+int  gr_compExpression(int* operandInfo);
 int  gr_expression(int* operandInfo);
-int  gr_newExpression(int* operandInfo);
 void gr_while(int* operandInfo);
 void gr_if(int* operandInfo);
 void gr_return(int returnType, int* operandInfo);
@@ -3828,7 +3828,7 @@ int gr_extExpression(int* operandInfo) {
   return ltype;
 }
 
-int gr_expression(int* operandInfo) {
+int gr_compExpression(int* operandInfo) {
   int ltype;
   int operatorSymbol;
   int rtype;
@@ -3964,7 +3964,7 @@ int gr_expression(int* operandInfo) {
   return ltype;
 }
 
-int emit_BooleanExpression(ltype, rtype, operatorSymbol) {
+int emit_BooleanExpression(int ltype, int rtype, int operatorSymbol) {
   if (ltype != INT_T)
     typeWarning(INT_T, ltype);
 
@@ -3976,19 +3976,23 @@ int emit_BooleanExpression(ltype, rtype, operatorSymbol) {
     // right = currentTemporary
 
     emitRFormat(OP_SPECIAL, REG_ZR, previousTemporary(), previousTemporary(), FCT_SLT);
+    emitIFormat(OP_BEQ, REG_ZR, previousTemporary(), 5);
+
     emitRFormat(OP_SPECIAL, REG_ZR, currentTemporary(), currentTemporary(), FCT_SLT);
-
-    emitIFormat(OP_BEQ, REG_ZR, previousTemporary(), 4);
-
     emitIFormat(OP_BNE, REG_ZR, currentTemporary(), 2);
 
     emitIFormat(OP_ADDIU, REG_ZR, previousTemporary(), 0);
 
   } else if (operatorSymbol == SYM_LOGICALOR) {
-    emitRFormat(OP_SPECIAL, REG_ZR, previousTemporary(), previousTemporary(), FCT_SLT);
-    emitRFormat(OP_SPECIAL, REG_ZR, currentTemporary(), currentTemporary(), FCT_SLT);
 
-    // Stefan TODO: Hier fortsetzen
+    emitRFormat(OP_SPECIAL, REG_ZR, previousTemporary(), previousTemporary(), FCT_SLT);
+    emitIFormat(OP_BNE, REG_ZR, previousTemporary(), 5);
+
+    emitRFormat(OP_SPECIAL, REG_ZR, currentTemporary(), currentTemporary(), FCT_SLT);
+    emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), 2);
+
+    emitIFormat(OP_ADDIU, REG_ZR, previousTemporary(), 1);
+
   }
 
   tfree(1);
@@ -3996,21 +4000,14 @@ int emit_BooleanExpression(ltype, rtype, operatorSymbol) {
   return ltype;
 }
 
-int gr_newExpression(int* operandInfo) {
+int gr_expression(int* operandInfo) {
   int ltype;
   int operatorSymbol;
   int rtype;
-  int lIsConstant;
-  int lValue;
-  int rIsConstant;
-  int rValue;
 
   // assert: n = allocatedTemporaries
 
-  ltype = gr_extExpression(operandInfo);
-
-  lIsConstant = isConstant(operandInfo);
-  lValue = getOperandsValue(operandInfo);
+  ltype = gr_compExpression(operandInfo);
 
   // assert: allocatedTemporaries == n + 1 or n
 
@@ -4024,15 +4021,14 @@ int gr_newExpression(int* operandInfo) {
 
     getSymbol();
 
-    rtype = gr_extExpression(operandInfo);
-
-    rIsConstant = isConstant(operandInfo);
-    rValue = getOperandsValue(operandInfo);
+    rtype = gr_compExpression(operandInfo);
 
     // assert: allocatedTemporaries == n + 2
 
     if (ltype != rtype)
       typeWarning(ltype, rtype);
+
+    emit_BooleanExpression(ltype, rtype, operatorSymbol);
 
   }
 

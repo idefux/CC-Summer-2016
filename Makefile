@@ -82,6 +82,9 @@ test_arrays: selfie
 test_struct: selfie
 	make -C test/struct
 
+test_bool: selfie
+	make -C test/bool
+
 test_all: selfie
 	make test_constant_folding
 	make test_arrays
