@@ -42,7 +42,7 @@ test_if3: if3.c
 	!(../../selfie -c $< -d 1 | grep 'lw $$t1,-8($$fp)')
 
 %.m: %.c
-	../../selfie -c $<
+	!(../../selfie -c $< | grep "error")
 	../../selfie -c $< -o $@a
 	../../selfie -l ../../selfie.m -m 2 -c $< -o $@b
 	diff -q $@a $@b
@@ -50,7 +50,7 @@ test_if3: if3.c
 	rm $@b
 
 %.s: %.c
-	../../selfie -c $<
+	!(../../selfie -c $< | grep "error")
 	../../selfie -c $< -s $@a
 	../../selfie -l ../../selfie.m -m 2 -c $< -s $@b
 	diff -q $@a $@b

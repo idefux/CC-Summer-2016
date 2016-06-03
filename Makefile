@@ -26,7 +26,7 @@ test: selfie
 	diff -q selfie1.s selfie3.s
 
 self_compilation: selfie
-	./selfie -c selfie.c -o selfie.m
+	!(./selfie -c selfie.c -o selfie.m | grep "error")
 
 # Test self-compilation, self-execution, and self-hosting
 short_test: selfie
