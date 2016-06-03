@@ -603,6 +603,12 @@ void unsetConstant(int* operandInfo);
 void setOperandsValue(int* operandInfo, int value);
 void delayedLoading(int lIsConstant, int lValue, int rIsConstant, int rValue);
 
+void setControlFlowMode(int* operandInfo) { *(operandInfo + 2) = 1; }
+void unsetControlFlowMode(int* operandInfo) { *(operandInfo + 2) = 0; }
+int  isControlFlowMode(int* operandInfo) { return *(operandInfo + 2); }
+void setElseOrEndBranch(int* operandInfo, int value) { *(operandInfo + 3) = value; }
+int  getElseOrEndBranch(int* operandInfo) { return *(operandInfo + 3); }
+
 void syntaxErrorField(int* udt, int* identifier);
 
 int  gr_call(int* procedure, int* operandInfo);
@@ -4015,21 +4021,35 @@ int gr_expression(int* operandInfo) {
   if (isBooleanOperator()) {
     operatorSymbol = symbol;
 
-    // Stefan, TODO: Check here
-    // a && -> a == FALSE => LOAD FALSE and break
-    // a || -> a == TRUE => LOAD TRUE and break
+    if (isControlFlowMode(operandInfo)) {
+      if (operatorSymbol == SYM_LOGICALAND) {
+        setElseOrEndBranch(operandInfo, binaryLength);
 
-    getSymbol();
+        emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), 0);
 
-    rtype = gr_compExpression(operandInfo);
+        tfree(1);
+      } else if (operatorSymbol == SYM_LOGICALOR) {
 
-    // assert: allocatedTemporaries == n + 2
 
-    if (ltype != rtype)
-      typeWarning(ltype, rtype);
+      }
 
-    emit_BooleanExpression(ltype, rtype, operatorSymbol);
+      getSymbol();
 
+      rtype = gr_compExpression(operandInfo);
+
+    } else {
+      getSymbol();
+
+      rtype = gr_compExpression(operandInfo);
+
+      // assert: allocatedTemporaries == n + 2
+
+      if (ltype != rtype)
+        typeWarning(ltype, rtype);
+
+      emit_BooleanExpression(ltype, rtype, operatorSymbol);
+
+    }
   }
 
   // assert: allocatedTemporaries == n + 1
@@ -4115,6 +4135,9 @@ void gr_if(int* operandInfo) {
     if (symbol == SYM_LPARENTHESIS) {
       getSymbol();
 
+      setControlFlowMode(operandInfo);
+      setElseOrEndBranch(operandInfo, 0);
+
       gr_expression(operandInfo);
 
       // if the "if" case is not true, we jump to "else" (if provided)
@@ -4123,6 +4146,8 @@ void gr_if(int* operandInfo) {
       emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), 0);
 
       tfree(1);
+
+      unsetControlFlowMode(operandInfo);
 
       if (symbol == SYM_RPARENTHESIS) {
         getSymbol();
@@ -4157,6 +4182,9 @@ void gr_if(int* operandInfo) {
           // if the "if" case was not true, we jump here
           fixup_relative(brForwardToElseOrEnd);
 
+          fixup_relative(getElseOrEndBranch(operandInfo));
+          setElseOrEndBranch(operandInfo, 0);
+
           // zero or more statements: { statement }
           if (symbol == SYM_LBRACE) {
             getSymbol();
@@ -4178,9 +4206,16 @@ void gr_if(int* operandInfo) {
 
           // if the "if" case was true, we jump here
           fixup_relative(brForwardToEnd);
-        } else
+
+          fixup_relative(getElseOrEndBranch(operandInfo));
+          setElseOrEndBranch(operandInfo, 0);
+        } else {
           // if the "if" case was not true, we jump here
           fixup_relative(brForwardToElseOrEnd);
+
+          fixup_relative(getElseOrEndBranch(operandInfo));
+          setElseOrEndBranch(operandInfo, 0);
+        }
       } else
         syntaxErrorSymbol(SYM_RPARENTHESIS);
     } else
@@ -5058,7 +5093,7 @@ void gr_cstar() {
   struct ArraySize* arraySize;
   int* entry;
 
-  operandInfo = malloc(2 * SIZEOFINT);
+  operandInfo = malloc(4 * SIZEOFINT);
   arraySize = (struct ArraySize*) malloc(2 * SIZEOFINT);
 
   while (symbol != SYM_EOF) {
@@ -5539,13 +5574,15 @@ void emitJFormat(int opcode, int instr_index) {
 void fixup_relative(int fromAddress) {
   int instruction;
 
-  instruction = loadBinary(fromAddress);
+  if (fromAddress != 0) {
+    instruction = loadBinary(fromAddress);
 
-  storeBinary(fromAddress,
-    encodeIFormat(getOpcode(instruction),
-      getRS(instruction),
-      getRT(instruction),
-      (binaryLength - fromAddress - WORDSIZE) / WORDSIZE));
+    storeBinary(fromAddress,
+      encodeIFormat(getOpcode(instruction),
+        getRS(instruction),
+        getRT(instruction),
+        (binaryLength - fromAddress - WORDSIZE) / WORDSIZE));
+  }
 }
 
 void fixup_absolute(int fromAddress, int toAddress) {

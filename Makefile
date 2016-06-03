@@ -25,6 +25,9 @@ test: selfie
 	diff -q selfie1.m selfie3.m
 	diff -q selfie1.s selfie3.s
 
+self_compilation: selfie
+	./selfie -c selfie.c -o selfie.m
+
 # Test self-compilation, self-execution, and self-hosting
 short_test: selfie
 	./selfie -c selfie.c -o selfie1.m -s selfie1.s -m 2 -c selfie.c -o selfie2.m -s selfie2.s
@@ -79,10 +82,10 @@ test_arrays: selfie
 	./selfie -c test/array_function_argument.c -d 1 | grep -E 'exit code 30'
 
 # Test struct functionality
-test_struct: selfie
+test_struct: self_compilation
 	make -C test/struct
 
-test_bool: selfie
+test_bool: self_compilation
 	make -C test/bool
 
 test_all: selfie

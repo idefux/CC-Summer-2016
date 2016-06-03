@@ -27,10 +27,24 @@ test_assignment4: assignment4.c
 	../../selfie -c $<
 	../../selfie -c $< -d 1 | grep -E 'exit code 0'
 
+test_if1: if1.c
+	../../selfie -c $<
+	../../selfie -c $< -d 1 | grep -E 'exit code 77'
+
+test_if2: if2.c
+	../../selfie -c $<
+	../../selfie -c $< -d 1 | grep -E 'exit code 88'
+
+# must not lw y
+test_if3: if3.c
+	../../selfie -c $<
+	../../selfie -c $< -d 1 | grep -E 'exit code 88'
+	!(../../selfie -c $< -d 1 | grep 'lw $$t1,-8($$fp)')
+
 %.m: %.c
 	../../selfie -c $<
 	../../selfie -c $< -o $@a
-	../../selfie -l ../../selfie1.m -m 2 -c $< -o $@b
+	../../selfie -l ../../selfie.m -m 2 -c $< -o $@b
 	diff -q $@a $@b
 	rm $@a
 	rm $@b
@@ -38,7 +52,7 @@ test_assignment4: assignment4.c
 %.s: %.c
 	../../selfie -c $<
 	../../selfie -c $< -s $@a
-	../../selfie -l ../../selfie1.m -m 2 -c $< -s $@b
+	../../selfie -l ../../selfie.m -m 2 -c $< -s $@b
 	diff -q $@a $@b
 	rm $@a
 	rm $@b
