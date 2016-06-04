@@ -41,6 +41,16 @@ test_if3: if3.c
 	../../selfie -c $< -d 1 | grep -E 'exit code 88'
 	!(../../selfie -c $< -d 1 | grep 'lw $$t1,-8($$fp)')
 
+test_if4: if4.c
+	../../selfie -c $<
+	../../selfie -c $< -d 1 | grep -E 'exit code 88'
+
+# must not lw y
+test_if5: if5.c
+	../../selfie -c $<
+	../../selfie -c $< -d 1 | grep -E 'exit code 77'
+	!(../../selfie -c $< -d 1 | grep 'lw $$t1,-8($$fp)')
+
 %.m: %.c
 	!(../../selfie -c $< | grep "error")
 	../../selfie -c $< -o $@a

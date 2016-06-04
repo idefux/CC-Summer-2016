@@ -608,6 +608,8 @@ void unsetControlFlowMode(int* operandInfo) { *(operandInfo + 2) = 0; }
 int  isControlFlowMode(int* operandInfo) { return *(operandInfo + 2); }
 void setElseOrEndBranch(int* operandInfo, int value) { *(operandInfo + 3) = value; }
 int  getElseOrEndBranch(int* operandInfo) { return *(operandInfo + 3); }
+void setTrueBranch(int* operandInfo, int value) { *(operandInfo + 4) = value; }
+int  getTrueBranch(int* operandInfo) { return *(operandInfo + 4); }
 
 void syntaxErrorField(int* udt, int* identifier);
 
@@ -4029,7 +4031,11 @@ int gr_expression(int* operandInfo) {
 
         tfree(1);
       } else if (operatorSymbol == SYM_LOGICALOR) {
+        setTrueBranch(operandInfo, binaryLength);
 
+        emitIFormat(OP_BNE, REG_ZR, currentTemporary(), 0);
+
+        tfree(1);
 
       }
 
@@ -4146,6 +4152,11 @@ void gr_if(int* operandInfo) {
       emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), 0);
 
       tfree(1);
+
+      // lazy evaluation true jump here
+
+      fixup_relative(getTrueBranch(operandInfo));
+      setTrueBranch(operandInfo, 0);
 
       unsetControlFlowMode(operandInfo);
 
@@ -5093,7 +5104,7 @@ void gr_cstar() {
   struct ArraySize* arraySize;
   int* entry;
 
-  operandInfo = malloc(4 * SIZEOFINT);
+  operandInfo = malloc(5 * SIZEOFINT);
   arraySize = (struct ArraySize*) malloc(2 * SIZEOFINT);
 
   while (symbol != SYM_EOF) {
