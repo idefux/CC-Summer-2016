@@ -606,8 +606,8 @@ void delayedLoading(int lIsConstant, int lValue, int rIsConstant, int rValue);
 void setControlFlowMode(int* operandInfo) { *(operandInfo + 2) = 1; }
 void unsetControlFlowMode(int* operandInfo) { *(operandInfo + 2) = 0; }
 int  isControlFlowMode(int* operandInfo) { return *(operandInfo + 2); }
-void setElseOrEndBranch(int* operandInfo, int value) { *(operandInfo + 3) = value; }
-int  getElseOrEndBranch(int* operandInfo) { return *(operandInfo + 3); }
+void setFalseBranch(int* operandInfo, int value) { *(operandInfo + 3) = value; }
+int  getFalseBranch(int* operandInfo) { return *(operandInfo + 3); }
 void setTrueBranch(int* operandInfo, int value) { *(operandInfo + 4) = value; }
 int  getTrueBranch(int* operandInfo) { return *(operandInfo + 4); }
 
@@ -4025,7 +4025,7 @@ int gr_expression(int* operandInfo) {
 
     if (isControlFlowMode(operandInfo)) {
       if (operatorSymbol == SYM_LOGICALAND) {
-        setElseOrEndBranch(operandInfo, binaryLength);
+        setFalseBranch(operandInfo, binaryLength);
 
         emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), 0);
 
@@ -4080,6 +4080,10 @@ void gr_while(int* operandInfo) {
     if (symbol == SYM_LPARENTHESIS) {
       getSymbol();
 
+      setControlFlowMode(operandInfo);
+      setFalseBranch(operandInfo, 0);
+      setTrueBranch(operandInfo, 0);
+
       gr_expression(operandInfo);
 
       // do not know where to branch, fixup later
@@ -4088,6 +4092,12 @@ void gr_while(int* operandInfo) {
       emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), 0);
 
       tfree(1);
+
+      // lazy evaluation true jump here
+      fixup_relative(getTrueBranch(operandInfo));
+      setTrueBranch(operandInfo, 0);
+
+      unsetControlFlowMode(operandInfo);
 
       if (symbol == SYM_RPARENTHESIS) {
         getSymbol();
@@ -4125,6 +4135,10 @@ void gr_while(int* operandInfo) {
     // now we have our address for the conditional jump from above
     fixup_relative(brForwardToEnd);
 
+    // lazy evaluation false jump here
+    fixup_relative(getFalseBranch(operandInfo));
+    setFalseBranch(operandInfo, 0);
+
   // assert: allocatedTemporaries == 0
 }
 
@@ -4142,7 +4156,8 @@ void gr_if(int* operandInfo) {
       getSymbol();
 
       setControlFlowMode(operandInfo);
-      setElseOrEndBranch(operandInfo, 0);
+      setFalseBranch(operandInfo, 0);
+      setTrueBranch(operandInfo, 0);
 
       gr_expression(operandInfo);
 
@@ -4193,8 +4208,8 @@ void gr_if(int* operandInfo) {
           // if the "if" case was not true, we jump here
           fixup_relative(brForwardToElseOrEnd);
 
-          fixup_relative(getElseOrEndBranch(operandInfo));
-          setElseOrEndBranch(operandInfo, 0);
+          fixup_relative(getFalseBranch(operandInfo));
+          setFalseBranch(operandInfo, 0);
 
           // zero or more statements: { statement }
           if (symbol == SYM_LBRACE) {
@@ -4218,14 +4233,14 @@ void gr_if(int* operandInfo) {
           // if the "if" case was true, we jump here
           fixup_relative(brForwardToEnd);
 
-          fixup_relative(getElseOrEndBranch(operandInfo));
-          setElseOrEndBranch(operandInfo, 0);
+          fixup_relative(getFalseBranch(operandInfo));
+          setFalseBranch(operandInfo, 0);
         } else {
           // if the "if" case was not true, we jump here
           fixup_relative(brForwardToElseOrEnd);
 
-          fixup_relative(getElseOrEndBranch(operandInfo));
-          setElseOrEndBranch(operandInfo, 0);
+          fixup_relative(getFalseBranch(operandInfo));
+          setFalseBranch(operandInfo, 0);
         }
       } else
         syntaxErrorSymbol(SYM_RPARENTHESIS);

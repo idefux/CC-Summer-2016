@@ -13,11 +13,11 @@ int main() {
 
 
   g1 = malloc(4);
-  s1 = malloc(2 * 4);
-  s2 = malloc(2 * 4);
-  s3 = malloc(2 * 4);
+  s1 = (struct s*) malloc(2 * 4);
+  s2 = (struct s*) malloc(2 * 4);
+  s3 = (struct s*) malloc(2 * 4);
 
-  temp = g1;
+  temp = (int) g1;
 
   s2->a = 2222;
   s2->b = 3333;

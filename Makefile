@@ -88,7 +88,7 @@ test_struct: self_compilation
 test_bool: self_compilation
 	make -C test/bool
 
-test_all: selfie
+test_all: self_compilation
 	make test_constant_folding
 	make test_arrays
 	make -C test/struct
