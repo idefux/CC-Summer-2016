@@ -6,10 +6,7 @@ int main() {
   x = 1;
   y = 0;
 
-  if (x || y)
-    z = 77;
-  else
-    z = 88;
+  z = !(x || y);
 
-  return z; // 77
+  return z; // 0
 }

@@ -610,6 +610,9 @@ void setFalseBranch(int* operandInfo, int value) { *(operandInfo + 3) = value; }
 int  getFalseBranch(int* operandInfo) { return *(operandInfo + 3); }
 void setTrueBranch(int* operandInfo, int value) { *(operandInfo + 4) = value; }
 int  getTrueBranch(int* operandInfo) { return *(operandInfo + 4); }
+int  setInvertOperator(int* operandInfo) { *(operandInfo + 5) = 1; }
+int  unsetInvertOperator(int* operandInfo) { *(operandInfo + 5) = 0; }
+int  isInvertOperator(int* operandInfo) { return *(operandInfo + 5); }
 
 void syntaxErrorField(int* udt, int* identifier);
 
@@ -2180,12 +2183,13 @@ int getSymbol() {
     } else if (character == CHAR_EXCLAMATION) {
         getCharacter();
 
-        if (character == CHAR_EQUAL)
-            getCharacter();
-        else
-            syntaxErrorCharacter(CHAR_EQUAL);
+        symbol = SYM_LOGICALNOT;
 
-        symbol = SYM_NOTEQ;
+        if (character == CHAR_EQUAL) {
+            getCharacter();
+
+            symbol = SYM_NOTEQ;
+        }
 
     } else if (character == CHAR_PERCENTAGE) {
         getCharacter();
@@ -2211,11 +2215,6 @@ int getSymbol() {
         syntaxErrorCharacter(CHAR_VERTICALBAR);
 
       symbol = SYM_LOGICALOR;
-
-    } else if (character == CHAR_EXCLAMATION) {
-      getCharacter();
-
-      symbol = SYM_LOGICALNOT;
 
     } else {
         printLineNumber((int*) "error", lineNumber);
@@ -2543,6 +2542,8 @@ int lookForFactor() {
   if (symbol == SYM_LPARENTHESIS)
     return 0;
   else if (symbol == SYM_ASTERISK)
+    return 0;
+  else if (symbol == SYM_LOGICALNOT)
     return 0;
   else if (symbol == SYM_IDENTIFIER)
     return 0;
@@ -3178,6 +3179,28 @@ int gr_factor(int* operandInfo) {
     emitIFormat(OP_LW, currentTemporary(), currentTemporary(), 0);
 
     type = INT_T;
+
+  // logical not?
+  } else if (symbol == SYM_LOGICALNOT) {
+    getSymbol();
+
+    // requires "(" expression ")" after "!"
+
+    if (symbol == SYM_LPARENTHESIS) {
+      getSymbol();
+
+      setInvertOperator(operandInfo);
+
+      type = gr_expression(operandInfo);
+
+      //unsetInvertOperator(operandInfo);
+
+      if (symbol == SYM_RPARENTHESIS)
+        getSymbol();
+      else
+        syntaxErrorSymbol(SYM_RPARENTHESIS);
+    } else
+      syntaxErrorSymbol(SYM_LPARENTHESIS);
 
   // identifier?
   } else if (symbol == SYM_IDENTIFIER) {
@@ -3836,6 +3859,23 @@ int gr_extExpression(int* operandInfo) {
   return ltype;
 }
 
+int invertComparison(int comparison) {
+  if (comparison == SYM_EQUALITY)
+    return SYM_NOTEQ;
+  else if (comparison == SYM_NOTEQ)
+    return SYM_EQUALITY;
+  else if (comparison == SYM_LT)
+    return SYM_GEQ;
+  else if (comparison == SYM_LEQ)
+    return SYM_GT;
+  else if (comparison == SYM_GT)
+    return SYM_LEQ;
+  else if (comparison == SYM_GEQ)
+    return SYM_LT;
+  else
+    return comparison;
+}
+
 int gr_compExpression(int* operandInfo) {
   int ltype;
   int operatorSymbol;
@@ -3869,6 +3909,11 @@ int gr_compExpression(int* operandInfo) {
 
     if (ltype != rtype)
       typeWarning(ltype, rtype);
+
+    if (isInvertOperator(operandInfo)) {
+      operatorSymbol = invertComparison(operatorSymbol);
+      unsetInvertOperator(operandInfo);
+    }
 
     if (and(lIsConstant, rIsConstant)) {
 
@@ -3972,7 +4017,7 @@ int gr_compExpression(int* operandInfo) {
   return ltype;
 }
 
-int emit_BooleanExpression(int ltype, int rtype, int operatorSymbol) {
+int emit_BooleanExpression(int ltype, int rtype, int operatorSymbol, int* operandInfo) {
   if (ltype != INT_T)
     typeWarning(INT_T, ltype);
 
@@ -3982,25 +4027,54 @@ int emit_BooleanExpression(int ltype, int rtype, int operatorSymbol) {
   if (operatorSymbol == SYM_LOGICALAND) {
     // left = previousTemporary
     // right = currentTemporary
+    if (isInvertOperator(operandInfo)) {
+      emitRFormat(OP_SPECIAL, REG_ZR, previousTemporary(), previousTemporary(), FCT_SLT);
+      emitIFormat(OP_BEQ, REG_ZR, previousTemporary(), 7); // jump to 1
 
-    emitRFormat(OP_SPECIAL, REG_ZR, previousTemporary(), previousTemporary(), FCT_SLT);
-    emitIFormat(OP_BEQ, REG_ZR, previousTemporary(), 5);
+      emitRFormat(OP_SPECIAL, REG_ZR, currentTemporary(), currentTemporary(), FCT_SLT);
+      emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), 4); // jump to 1
 
-    emitRFormat(OP_SPECIAL, REG_ZR, currentTemporary(), currentTemporary(), FCT_SLT);
-    emitIFormat(OP_BNE, REG_ZR, currentTemporary(), 2);
+      emitIFormat(OP_ADDIU, REG_ZR, previousTemporary(), 0); // set to 0
+      emitIFormat(OP_BEQ, REG_ZR, REG_ZR, 2); // jump over set to 1
 
-    emitIFormat(OP_ADDIU, REG_ZR, previousTemporary(), 0);
+      emitIFormat(OP_ADDIU, REG_ZR, previousTemporary(), 1); // set to 1
 
+      unsetInvertOperator(operandInfo);
+
+    } else {
+      emitRFormat(OP_SPECIAL, REG_ZR, previousTemporary(), previousTemporary(), FCT_SLT);
+      emitIFormat(OP_BEQ, REG_ZR, previousTemporary(), 5);
+
+      emitRFormat(OP_SPECIAL, REG_ZR, currentTemporary(), currentTemporary(), FCT_SLT);
+      emitIFormat(OP_BNE, REG_ZR, currentTemporary(), 2);
+
+      emitIFormat(OP_ADDIU, REG_ZR, previousTemporary(), 0);
+
+    }
   } else if (operatorSymbol == SYM_LOGICALOR) {
+    if (isInvertOperator(operandInfo)) {
+      emitRFormat(OP_SPECIAL, REG_ZR, previousTemporary(), previousTemporary(), FCT_SLT);
+      emitIFormat(OP_BNE, REG_ZR, previousTemporary(), 7); //  if 1 jump to 0
 
-    emitRFormat(OP_SPECIAL, REG_ZR, previousTemporary(), previousTemporary(), FCT_SLT);
-    emitIFormat(OP_BNE, REG_ZR, previousTemporary(), 5);
+      emitRFormat(OP_SPECIAL, REG_ZR, currentTemporary(), currentTemporary(), FCT_SLT);
+      emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), 4); // if 1 jump to 0
 
-    emitRFormat(OP_SPECIAL, REG_ZR, currentTemporary(), currentTemporary(), FCT_SLT);
-    emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), 2);
+      emitIFormat(OP_ADDIU, REG_ZR, previousTemporary(), 1); // else set to 1
+      emitIFormat(OP_BEQ, REG_ZR, REG_ZR, 2); // jump over set to 0
 
-    emitIFormat(OP_ADDIU, REG_ZR, previousTemporary(), 1);
+      emitIFormat(OP_ADDIU, REG_ZR, previousTemporary(), 0); // set to 0
 
+      unsetInvertOperator(operandInfo);
+
+    } else {
+      emitRFormat(OP_SPECIAL, REG_ZR, previousTemporary(), previousTemporary(), FCT_SLT);
+      emitIFormat(OP_BNE, REG_ZR, previousTemporary(), 5);
+
+      emitRFormat(OP_SPECIAL, REG_ZR, currentTemporary(), currentTemporary(), FCT_SLT);
+      emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), 2);
+
+      emitIFormat(OP_ADDIU, REG_ZR, previousTemporary(), 1);
+    }
   }
 
   tfree(1);
@@ -4019,20 +4093,27 @@ int gr_expression(int* operandInfo) {
 
   // assert: allocatedTemporaries == n + 1 or n
 
-  //optional: && ,|| extExpression
+  //optional: && ,|| compExpression
   if (isBooleanOperator()) {
     operatorSymbol = symbol;
 
     if (isControlFlowMode(operandInfo)) {
       if (operatorSymbol == SYM_LOGICALAND) {
-        setFalseBranch(operandInfo, binaryLength);
-
+        if (isInvertOperator(operandInfo)) {
+          setTrueBranch(operandInfo, binaryLength);
+        } else {
+          setFalseBranch(operandInfo, binaryLength);
+        }
         emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), 0);
 
         tfree(1);
-      } else if (operatorSymbol == SYM_LOGICALOR) {
-        setTrueBranch(operandInfo, binaryLength);
 
+      } else if (operatorSymbol == SYM_LOGICALOR) {
+        if (isInvertOperator(operandInfo)) {
+          setFalseBranch(operandInfo, binaryLength);
+        } else {
+          setTrueBranch(operandInfo, binaryLength);
+        }
         emitIFormat(OP_BNE, REG_ZR, currentTemporary(), 0);
 
         tfree(1);
@@ -4053,7 +4134,7 @@ int gr_expression(int* operandInfo) {
       if (ltype != rtype)
         typeWarning(ltype, rtype);
 
-      emit_BooleanExpression(ltype, rtype, operatorSymbol);
+      emit_BooleanExpression(ltype, rtype, operatorSymbol, operandInfo);
 
     }
   }
@@ -4161,10 +4242,17 @@ void gr_if(int* operandInfo) {
 
       gr_expression(operandInfo);
 
-      // if the "if" case is not true, we jump to "else" (if provided)
-      brForwardToElseOrEnd = binaryLength;
-
-      emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), 0);
+      if (isInvertOperator(operandInfo)) {
+        // emitIFormat(OP_BNE, REG_ZR, currentTemporary(), 0);
+        // jump to True Branch (follows here)
+        brForwardToElseOrEnd = binaryLength;
+        unsetInvertOperator(operandInfo);
+        emitIFormat(OP_BNE, REG_ZR, currentTemporary(), 0);
+      } else {
+        // if the "if" case is not true, we jump to "else" (if provided)
+        brForwardToElseOrEnd = binaryLength;
+        emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), 0);
+      }
 
       tfree(1);
 
@@ -5119,7 +5207,7 @@ void gr_cstar() {
   struct ArraySize* arraySize;
   int* entry;
 
-  operandInfo = malloc(5 * SIZEOFINT);
+  operandInfo = malloc(6 * SIZEOFINT);
   arraySize = (struct ArraySize*) malloc(2 * SIZEOFINT);
 
   while (symbol != SYM_EOF) {

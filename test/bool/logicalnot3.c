@@ -3,10 +3,10 @@ int main() {
   int y;
   int z;
 
-  x = 1;
-  y = 0;
+  x = 20;
+  y = 30;
 
-  if (x || y)
+  if (!(x == 0))
     z = 77;
   else
     z = 88;
