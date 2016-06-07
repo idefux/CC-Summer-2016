@@ -19,6 +19,7 @@ test:
 	make test_logicalnot2
 	make test_logicalnot3
 	make test_logicalnot_controlflow
+	make test_logicalnot_data
 
 test_self_compilation: $(binaries) $(assemblies)
 
@@ -95,6 +96,15 @@ test_logicalnot_controlflow: logicalnot_controlflow*.c
 	../../selfie -c logicalnot_controlflow6.c -d 1 | grep 'exit code 27'
 	../../selfie -c logicalnot_controlflow7.c -d 1 | grep 'exit code 27'
 	../../selfie -c logicalnot_controlflow8.c -d 1 | grep 'exit code 27'
+	../../selfie -c logicalnot_controlflow9.c -d 1 | grep 'exit code 10'
+	../../selfie -c logicalnot_controlflow10.c -d 1 | grep 'exit code 77'
+	../../selfie -c logicalnot_controlflow11.c -d 1 | grep 'exit code 77'
+
+
+test_logicalnot_data: logicalnot_data*.c
+	../../selfie -c logicalnot_data1.c -d 1 | grep 'exit code 0'
+	../../selfie -c logicalnot_data2.c -d 1 | grep 'exit code 1'
+	../../selfie -c logicalnot_data3.c -d 1 | grep 'exit code 0'
 
 %.m: %.c
 	!(../../selfie -c $< | grep "error")

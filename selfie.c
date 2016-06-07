@@ -3089,6 +3089,19 @@ int gr_call(int* procedure, int* operandInfo) {
   return type;
 }
 
+void emit_InvertBoolean() {
+  // if currentTemporary() > 0 -> set to 0
+  // else -> set to 1
+  emitRFormat(OP_SPECIAL, REG_ZR, currentTemporary(), currentTemporary(), FCT_SLT);
+  emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), 4);
+
+  emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 0);
+  emitIFormat(OP_BEQ, REG_ZR, REG_ZR, 2);
+
+  emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), 1);
+
+}
+
 int gr_factor(int* operandInfo) {
   int hasCast;
   int cast;
@@ -3189,6 +3202,11 @@ int gr_factor(int* operandInfo) {
       setInvertOperator(operandInfo);
 
       type = gr_expression(operandInfo);
+
+      if (!(isControlFlowMode(operandInfo)) && isInvertOperator(operandInfo)) {
+        emit_InvertBoolean();
+        unsetInvertOperator(operandInfo);
+      }
 
       //unsetInvertOperator(operandInfo);
 
@@ -4167,7 +4185,11 @@ void gr_while(int* operandInfo) {
       // do not know where to branch, fixup later
       brForwardToEnd = binaryLength;
 
-      emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), 0);
+      if (isInvertOperator(operandInfo)) {
+        unsetInvertOperator(operandInfo);
+        emitIFormat(OP_BNE, REG_ZR, currentTemporary(), 0);
+      } else
+        emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), 0);
 
       tfree(1);
 
@@ -4239,17 +4261,14 @@ void gr_if(int* operandInfo) {
 
       gr_expression(operandInfo);
 
+      // if the "if" case is not true, we jump to "else" (if provided)
+      brForwardToElseOrEnd = binaryLength;
+
       if (isInvertOperator(operandInfo)) {
-        // emitIFormat(OP_BNE, REG_ZR, currentTemporary(), 0);
-        // jump to True Branch (follows here)
-        brForwardToElseOrEnd = binaryLength;
         unsetInvertOperator(operandInfo);
         emitIFormat(OP_BNE, REG_ZR, currentTemporary(), 0);
-      } else {
-        // if the "if" case is not true, we jump to "else" (if provided)
-        brForwardToElseOrEnd = binaryLength;
+      } else
         emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), 0);
-      }
 
       tfree(1);
 
