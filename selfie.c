@@ -4120,36 +4120,42 @@ int gr_expression(int* operandInfo) {
           oldBranch = getTrueBranch(operandInfo);
           setTrueBranch(operandInfo, binaryLength);
         } else {
+          oldBranch = getFalseBranch(operandInfo);
+          // append to F-jump list
+          setFalseBranch(operandInfo, binaryLength);
+
+          emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), oldBranch);
+          tfree(1);
+
           oldBranch = getTrueBranch(operandInfo);
           // fix T-jump(s)
           if (oldBranch != 0) {
             fixlink_relative(oldBranch);
             setTrueBranch(operandInfo, 0);
           }
-          oldBranch = getFalseBranch(operandInfo);
-          // append to F-jump list
-          setFalseBranch(operandInfo, binaryLength);
         }
-        emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), oldBranch);
-        tfree(1);
+
 
       } else if (operatorSymbol == SYM_LOGICALOR) {
         if (isInvertOperator(operandInfo)) {
           oldBranch = getFalseBranch(operandInfo);
           setFalseBranch(operandInfo, binaryLength);
         } else {
+          oldBranch = getTrueBranch(operandInfo);
+          // append to T-jump liste
+          setTrueBranch(operandInfo, binaryLength);
+
+          emitIFormat(OP_BNE, REG_ZR, currentTemporary(), oldBranch);
+          tfree(1);
+
           oldBranch = getFalseBranch(operandInfo);
           // fix F-jump(s)
           if (oldBranch != 0) {
             fixlink_relative(oldBranch);
             setFalseBranch(operandInfo, 0);
           }
-          oldBranch = getTrueBranch(operandInfo);
-          // append to T-jump liste
-          setTrueBranch(operandInfo, binaryLength);
         }
-        emitIFormat(OP_BNE, REG_ZR, currentTemporary(), oldBranch);
-        tfree(1);
+
 
       }
       getSymbol();

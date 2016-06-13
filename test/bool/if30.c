@@ -6,14 +6,14 @@ int main() {
   int e;
   int f;
 
-  a = 0;
+  a = 1;
   b = 0;
   c = 1;
   d = 0;
   e = 0;
   f = 0;
 
-  if ((a || b) && (c || d) && (e || f))
+  if (a && b && c && d && e)
     return 222;
   else
     return 5678;
