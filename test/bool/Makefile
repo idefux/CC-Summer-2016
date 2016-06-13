@@ -75,6 +75,18 @@ test_if7: if7.c
 	../../selfie -c $< -d 1 | grep -E 'exit code 88'
 	!(../../selfie -c $< -d 1 | grep 'lw $$t1,-8($$fp)')
 
+test_if2x: if2*.c
+	../selfie -c if20.c -d 1 | grep -E 'exit code 222'
+	../selfie -c if21.c -d 1 | grep -E 'exit code 5678'
+	../selfie -c if22.c -d 1 | grep -E 'exit code 5678'
+	../selfie -c if23.c -d 1 | grep -E 'exit code 5678'
+	../selfie -c if24.c -d 1 | grep -E 'exit code 222'
+	../selfie -c if25.c -d 1 | grep -E 'exit code 222'
+	../selfie -c if26.c -d 1 | grep -E 'exit code 222'
+	../selfie -c if27.c -d 1 | grep -E 'exit code 5678'
+	../selfie -c if28.c -d 1 | grep -E 'exit code 222'
+	../selfie -c if29.c -d 1 | grep -E 'exit code 5678'
+
 test_logicalnot1: logicalnot1.c
 	../../selfie -c $<
 	../../selfie -c $< -d 1 | grep -E 'exit code 0'

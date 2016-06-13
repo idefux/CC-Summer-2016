@@ -881,6 +881,7 @@ void emitIFormat(int opcode, int rs, int rt, int immediate);
 void emitJFormat(int opcode, int instr_index);
 
 void fixup_relative(int fromAddress);
+void fixlink_relative(int fromAddress);
 void fixup_absolute(int fromAddress, int toAddress);
 void fixlink_absolute(int fromAddress, int toAddress);
 
@@ -4101,6 +4102,7 @@ int gr_expression(int* operandInfo) {
   int ltype;
   int operatorSymbol;
   int rtype;
+  int oldBranch;
 
   // assert: n = allocatedTemporaries
 
@@ -4109,32 +4111,47 @@ int gr_expression(int* operandInfo) {
   // assert: allocatedTemporaries == n + 1 or n
 
   //optional: && ,|| compExpression
-  if (isBooleanOperator()) {
+  while (isBooleanOperator()) {
     operatorSymbol = symbol;
 
     if (isControlFlowMode(operandInfo)) {
       if (operatorSymbol == SYM_LOGICALAND) {
         if (isInvertOperator(operandInfo)) {
+          oldBranch = getTrueBranch(operandInfo);
           setTrueBranch(operandInfo, binaryLength);
         } else {
+          oldBranch = getTrueBranch(operandInfo);
+          // fix T-jump(s)
+          if (oldBranch != 0) {
+            fixlink_relative(oldBranch);
+            setTrueBranch(operandInfo, 0);
+          }
+          oldBranch = getFalseBranch(operandInfo);
+          // append to F-jump list
           setFalseBranch(operandInfo, binaryLength);
         }
-        emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), 0);
-
+        emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), oldBranch);
         tfree(1);
 
       } else if (operatorSymbol == SYM_LOGICALOR) {
         if (isInvertOperator(operandInfo)) {
+          oldBranch = getFalseBranch(operandInfo);
           setFalseBranch(operandInfo, binaryLength);
         } else {
+          oldBranch = getFalseBranch(operandInfo);
+          // fix F-jump(s)
+          if (oldBranch != 0) {
+            fixlink_relative(oldBranch);
+            setFalseBranch(operandInfo, 0);
+          }
+          oldBranch = getTrueBranch(operandInfo);
+          // append to T-jump liste
           setTrueBranch(operandInfo, binaryLength);
         }
-        emitIFormat(OP_BNE, REG_ZR, currentTemporary(), 0);
-
+        emitIFormat(OP_BNE, REG_ZR, currentTemporary(), oldBranch);
         tfree(1);
 
       }
-
       getSymbol();
 
       rtype = gr_compExpression(operandInfo);
@@ -4274,7 +4291,7 @@ void gr_if(int* operandInfo) {
 
       // lazy evaluation true jump here
 
-      fixup_relative(getTrueBranch(operandInfo));
+      fixlink_relative(getTrueBranch(operandInfo));
       setTrueBranch(operandInfo, 0);
 
       unsetControlFlowMode(operandInfo);
@@ -4312,7 +4329,7 @@ void gr_if(int* operandInfo) {
           // if the "if" case was not true, we jump here
           fixup_relative(brForwardToElseOrEnd);
 
-          fixup_relative(getFalseBranch(operandInfo));
+          fixlink_relative(getFalseBranch(operandInfo));
           setFalseBranch(operandInfo, 0);
 
           // zero or more statements: { statement }
@@ -4337,13 +4354,13 @@ void gr_if(int* operandInfo) {
           // if the "if" case was true, we jump here
           fixup_relative(brForwardToEnd);
 
-          fixup_relative(getFalseBranch(operandInfo));
+          fixlink_relative(getFalseBranch(operandInfo));
           setFalseBranch(operandInfo, 0);
         } else {
           // if the "if" case was not true, we jump here
           fixup_relative(brForwardToElseOrEnd);
 
-          fixup_relative(getFalseBranch(operandInfo));
+          fixlink_relative(getFalseBranch(operandInfo));
           setFalseBranch(operandInfo, 0);
         }
       } else
@@ -5712,6 +5729,18 @@ void fixup_relative(int fromAddress) {
         getRS(instruction),
         getRT(instruction),
         (binaryLength - fromAddress - WORDSIZE) / WORDSIZE));
+  }
+}
+
+void fixlink_relative(int fromAddress) {
+  int previousAddress;
+
+  while (fromAddress != 0) {
+    previousAddress = getImmediate(loadBinary(fromAddress));
+
+    fixup_relative(fromAddress);
+
+    fromAddress = previousAddress;
   }
 }
 

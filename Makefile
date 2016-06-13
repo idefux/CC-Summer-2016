@@ -91,7 +91,8 @@ test_bool: self_compilation
 test_all: self_compilation
 	make test_constant_folding
 	make test_arrays
-	make -C test/struct
+	make test_struct
+	make test_bool
 
 # Clean up
 clean:
