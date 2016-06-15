@@ -3204,7 +3204,7 @@ int gr_factor(int* operandInfo) {
 
       type = gr_expression(operandInfo);
 
-      if (!(isControlFlowMode(operandInfo)) && isInvertOperator(operandInfo)) {
+      if (and((isControlFlowMode(operandInfo) == 0), isInvertOperator(operandInfo))) {
         emit_InvertBoolean();
         unsetInvertOperator(operandInfo);
       }
@@ -4098,66 +4098,37 @@ int emit_BooleanExpression(int ltype, int rtype, int operatorSymbol, int* operan
   return ltype;
 }
 
-int gr_expression(int* operandInfo) {
+int gr_andExpression(int* operandInfo) {
   int ltype;
   int operatorSymbol;
   int rtype;
   int oldBranch;
+  int doFixRelatives;
+
+  doFixRelatives = 0;
 
   // assert: n = allocatedTemporaries
 
   ltype = gr_compExpression(operandInfo);
 
-  // assert: allocatedTemporaries == n + 1 or n
+  // assert: allocatedTemporaries == n + 1
 
-  //optional: && ,|| compExpression
-  while (isBooleanOperator()) {
-    operatorSymbol = symbol;
+  while (symbol == SYM_LOGICALAND) {
 
     if (isControlFlowMode(operandInfo)) {
-      if (operatorSymbol == SYM_LOGICALAND) {
-        if (isInvertOperator(operandInfo)) {
-          oldBranch = getTrueBranch(operandInfo);
-          setTrueBranch(operandInfo, binaryLength);
-        } else {
-          oldBranch = getFalseBranch(operandInfo);
-          // append to F-jump list
-          setFalseBranch(operandInfo, binaryLength);
 
-          emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), oldBranch);
-          tfree(1);
+      doFixRelatives = 1;
 
-          oldBranch = getTrueBranch(operandInfo);
-          // fix T-jump(s)
-          if (oldBranch != 0) {
-            fixlink_relative(oldBranch);
-            setTrueBranch(operandInfo, 0);
-          }
-        }
-
-
-      } else if (operatorSymbol == SYM_LOGICALOR) {
-        if (isInvertOperator(operandInfo)) {
-          oldBranch = getFalseBranch(operandInfo);
-          setFalseBranch(operandInfo, binaryLength);
-        } else {
-          oldBranch = getTrueBranch(operandInfo);
-          // append to T-jump liste
-          setTrueBranch(operandInfo, binaryLength);
-
-          emitIFormat(OP_BNE, REG_ZR, currentTemporary(), oldBranch);
-          tfree(1);
-
-          oldBranch = getFalseBranch(operandInfo);
-          // fix F-jump(s)
-          if (oldBranch != 0) {
-            fixlink_relative(oldBranch);
-            setFalseBranch(operandInfo, 0);
-          }
-        }
-
-
+      if (isInvertOperator(operandInfo)) {
+        oldBranch = getTrueBranch(operandInfo);
+        setTrueBranch(operandInfo, binaryLength);
+      } else {
+        oldBranch = getFalseBranch(operandInfo);
+        setFalseBranch(operandInfo, binaryLength);
       }
+      emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), oldBranch);
+      tfree(1);
+
       getSymbol();
 
       rtype = gr_compExpression(operandInfo);
@@ -4172,12 +4143,95 @@ int gr_expression(int* operandInfo) {
       if (ltype != rtype)
         typeWarning(ltype, rtype);
 
-      emit_BooleanExpression(ltype, rtype, operatorSymbol, operandInfo);
+      emit_BooleanExpression(ltype, rtype, SYM_LOGICALAND, operandInfo);
+    }
+  }
 
+  if (doFixRelatives) {
+    if (isInvertOperator(operandInfo)) {
+      oldBranch = getFalseBranch(operandInfo);
+      // fix F-jump(s)
+      if (oldBranch != 0) {
+        fixlink_relative(oldBranch);
+        setFalseBranch(operandInfo, 0);
+      }
+    } else {
+      oldBranch = getTrueBranch(operandInfo);
+      // fix F-jump(s)
+      if (oldBranch != 0) {
+        fixlink_relative(oldBranch);
+        setTrueBranch(operandInfo, 0);
+      }
     }
   }
 
   // assert: allocatedTemporaries == n + 1
+
+  return ltype;
+}
+
+int gr_expression(int* operandInfo) {
+  int ltype;
+  int rtype;
+  int oldBranch;
+  int doFixRelatives;
+
+  doFixRelatives = 0;
+
+  // assert: n = allocatedTemporaries
+
+  ltype = gr_andExpression(operandInfo);
+
+  // assert: allocatedTemporaries == n + 1
+
+  while (symbol == SYM_LOGICALOR) {
+    if (isControlFlowMode(operandInfo)) {
+      doFixRelatives = 1;
+      if (isInvertOperator(operandInfo)) {
+        oldBranch = getFalseBranch(operandInfo);
+        setFalseBranch(operandInfo, binaryLength);
+
+      } else {
+        oldBranch = getTrueBranch(operandInfo);
+        setTrueBranch(operandInfo, binaryLength);
+      }
+      emitIFormat(OP_BNE, REG_ZR, currentTemporary(), oldBranch);
+      tfree(1);
+
+      getSymbol();
+      rtype = gr_andExpression(operandInfo);
+
+    } else {
+      getSymbol();
+      rtype = gr_andExpression(operandInfo);
+
+      // assert: allocatedTemporaries == n + 2
+
+      if (ltype != rtype)
+        typeWarning(ltype, rtype);
+
+      emit_BooleanExpression(ltype, rtype, SYM_LOGICALOR, operandInfo);
+
+    }
+  }
+  // assert: allocatedTemporaries == n + 1
+  if (doFixRelatives) {
+    if (isInvertOperator(operandInfo)) {
+      oldBranch = getTrueBranch(operandInfo);
+      // fix F-jump(s)
+      if (oldBranch != 0) {
+        fixlink_relative(oldBranch);
+        setTrueBranch(operandInfo, 0);
+      }
+    } else {
+      oldBranch = getFalseBranch(operandInfo);
+      // fix F-jump(s)
+      if (oldBranch != 0) {
+        fixlink_relative(oldBranch);
+        setFalseBranch(operandInfo, 0);
+      }
+    }
+  }
 
   return ltype;
 }
