@@ -622,6 +622,7 @@ int  gr_term(int* operandInfo);
 int  gr_simpleExpression(int* operandInfo);
 int  gr_extExpression(int* operandInfo);
 int  gr_compExpression(int* operandInfo);
+int  gr_andExpression(int* operandInfo);
 int  gr_expression(int* operandInfo);
 void gr_while(int* operandInfo);
 void gr_if(int* operandInfo);
@@ -1881,16 +1882,8 @@ int findNextCharacter() {
 }
 
 int isCharacterLetter() {
-  if (character >= 'a')
-    if (character <= 'z')
-      return 1;
-    else
-      return 0;
-  else if (character >= 'A')
-    if (character <= 'Z')
-      return 1;
-    else
-      return 0;
+  if ((character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z'))
+    return 1;
   else
     return 0;
 }
@@ -4100,9 +4093,8 @@ int emit_BooleanExpression(int ltype, int rtype, int operatorSymbol, int* operan
 
 int gr_andExpression(int* operandInfo) {
   int ltype;
-  int operatorSymbol;
   int rtype;
-  int oldBranch;
+  int branch;
   int doFixRelatives;
 
   doFixRelatives = 0;
@@ -4120,22 +4112,20 @@ int gr_andExpression(int* operandInfo) {
       doFixRelatives = 1;
 
       if (isInvertOperator(operandInfo)) {
-        oldBranch = getTrueBranch(operandInfo);
+        branch = getTrueBranch(operandInfo);
         setTrueBranch(operandInfo, binaryLength);
       } else {
-        oldBranch = getFalseBranch(operandInfo);
+        branch = getFalseBranch(operandInfo);
         setFalseBranch(operandInfo, binaryLength);
       }
-      emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), oldBranch);
+      emitIFormat(OP_BEQ, REG_ZR, currentTemporary(), branch);
       tfree(1);
 
       getSymbol();
-
       rtype = gr_compExpression(operandInfo);
 
     } else {
       getSymbol();
-
       rtype = gr_compExpression(operandInfo);
 
       // assert: allocatedTemporaries == n + 2
@@ -4147,25 +4137,24 @@ int gr_andExpression(int* operandInfo) {
     }
   }
 
+  // assert: allocatedTemporaries == n + 1
   if (doFixRelatives) {
     if (isInvertOperator(operandInfo)) {
-      oldBranch = getFalseBranch(operandInfo);
+      branch = getTrueBranch(operandInfo);
       // fix F-jump(s)
-      if (oldBranch != 0) {
-        fixlink_relative(oldBranch);
-        setFalseBranch(operandInfo, 0);
+      if (branch != 0) {
+        fixlink_relative(branch);
+        setTrueBranch(operandInfo, 0);
       }
     } else {
-      oldBranch = getTrueBranch(operandInfo);
+      branch = getFalseBranch(operandInfo);
       // fix F-jump(s)
-      if (oldBranch != 0) {
-        fixlink_relative(oldBranch);
-        setTrueBranch(operandInfo, 0);
+      if (branch != 0) {
+        fixlink_relative(branch);
+        setFalseBranch(operandInfo, 0);
       }
     }
   }
-
-  // assert: allocatedTemporaries == n + 1
 
   return ltype;
 }
@@ -4173,7 +4162,7 @@ int gr_andExpression(int* operandInfo) {
 int gr_expression(int* operandInfo) {
   int ltype;
   int rtype;
-  int oldBranch;
+  int branch;
   int doFixRelatives;
 
   doFixRelatives = 0;
@@ -4188,14 +4177,13 @@ int gr_expression(int* operandInfo) {
     if (isControlFlowMode(operandInfo)) {
       doFixRelatives = 1;
       if (isInvertOperator(operandInfo)) {
-        oldBranch = getFalseBranch(operandInfo);
+        branch = getFalseBranch(operandInfo);
         setFalseBranch(operandInfo, binaryLength);
-
       } else {
-        oldBranch = getTrueBranch(operandInfo);
+        branch = getTrueBranch(operandInfo);
         setTrueBranch(operandInfo, binaryLength);
       }
-      emitIFormat(OP_BNE, REG_ZR, currentTemporary(), oldBranch);
+      emitIFormat(OP_BNE, REG_ZR, currentTemporary(), branch);
       tfree(1);
 
       getSymbol();
@@ -4217,18 +4205,18 @@ int gr_expression(int* operandInfo) {
   // assert: allocatedTemporaries == n + 1
   if (doFixRelatives) {
     if (isInvertOperator(operandInfo)) {
-      oldBranch = getTrueBranch(operandInfo);
+      branch = getFalseBranch(operandInfo);
       // fix F-jump(s)
-      if (oldBranch != 0) {
-        fixlink_relative(oldBranch);
-        setTrueBranch(operandInfo, 0);
+      if (branch != 0) {
+        fixlink_relative(branch);
+        setFalseBranch(operandInfo, 0);
       }
     } else {
-      oldBranch = getFalseBranch(operandInfo);
+      branch = getTrueBranch(operandInfo);
       // fix F-jump(s)
-      if (oldBranch != 0) {
-        fixlink_relative(oldBranch);
-        setFalseBranch(operandInfo, 0);
+      if (branch != 0) {
+        fixlink_relative(branch);
+        setTrueBranch(operandInfo, 0);
       }
     }
   }

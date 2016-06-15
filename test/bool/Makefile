@@ -15,11 +15,14 @@ test:
 	make test_if5
 	make test_if6
 	make test_if7
+	make test_if2x
+	make test_if3x
 	make test_logicalnot1
 	make test_logicalnot2
 	make test_logicalnot3
 	make test_logicalnot_controlflow
 	make test_logicalnot_data
+	make test_while
 
 test_self_compilation: $(binaries) $(assemblies)
 
@@ -76,16 +79,22 @@ test_if7: if7.c
 	!(../../selfie -c $< -d 1 | grep 'lw $$t1,-8($$fp)')
 
 test_if2x: if2*.c
-	../selfie -c if20.c -d 1 | grep -E 'exit code 222'
-	../selfie -c if21.c -d 1 | grep -E 'exit code 5678'
-	../selfie -c if22.c -d 1 | grep -E 'exit code 5678'
-	../selfie -c if23.c -d 1 | grep -E 'exit code 5678'
-	../selfie -c if24.c -d 1 | grep -E 'exit code 222'
-	../selfie -c if25.c -d 1 | grep -E 'exit code 222'
-	../selfie -c if26.c -d 1 | grep -E 'exit code 222'
-	../selfie -c if27.c -d 1 | grep -E 'exit code 5678'
-	../selfie -c if28.c -d 1 | grep -E 'exit code 222'
-	../selfie -c if29.c -d 1 | grep -E 'exit code 5678'
+	../../selfie -c if20.c -d 1 | grep -E 'exit code 222'
+	../../selfie -c if21.c -d 1 | grep -E 'exit code 5678'
+	../../selfie -c if22.c -d 1 | grep -E 'exit code 5678'
+	../../selfie -c if23.c -d 1 | grep -E 'exit code 5678'
+	../../selfie -c if24.c -d 1 | grep -E 'exit code 222'
+	../../selfie -c if25.c -d 1 | grep -E 'exit code 222'
+	../../selfie -c if26.c -d 1 | grep -E 'exit code 222'
+	../../selfie -c if27.c -d 1 | grep -E 'exit code 5678'
+	../../selfie -c if28.c -d 1 | grep -E 'exit code 222'
+	../../selfie -c if29.c -d 1 | grep -E 'exit code 5678'
+
+test_if3x: if3*.c
+	../../selfie -c if30.c -d 1 | grep -E 'exit code 5678'
+	../../selfie -c if31.c -d 1 | grep -E 'exit code 55'
+	../../selfie -c if32.c -d 1 | grep -E 'exit code 1'
+	../../selfie -c if33.c -d 1 | grep -E 'exit code 0'
 
 test_logicalnot1: logicalnot1.c
 	../../selfie -c $<
@@ -112,11 +121,14 @@ test_logicalnot_controlflow: logicalnot_controlflow*.c
 	../../selfie -c logicalnot_controlflow10.c -d 1 | grep 'exit code 77'
 	../../selfie -c logicalnot_controlflow11.c -d 1 | grep 'exit code 77'
 
-
 test_logicalnot_data: logicalnot_data*.c
 	../../selfie -c logicalnot_data1.c -d 1 | grep 'exit code 0'
 	../../selfie -c logicalnot_data2.c -d 1 | grep 'exit code 1'
 	../../selfie -c logicalnot_data3.c -d 1 | grep 'exit code 0'
+
+test_while: while*.c
+	../../selfie -c while1.c -d 1 | grep 'exit code 1'
+	../../selfie -c while2.c -d 1 | grep 'exit code 4'
 
 %.m: %.c
 	!(../../selfie -c $< | grep "error")
