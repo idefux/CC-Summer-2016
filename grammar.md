@@ -41,7 +41,9 @@ extExpression    = simpleExpression { ( "<<" | ">>" ) simpleExpression } .
 
 compExpression   = extExpression [ ( "==" | "!=" | "<" | ">" | "<=" | ">=" ) extExpression ] .
 
-expression       = compExpression [ ( "&&" | "||" ) compExpression ] .
+andExpression    = compExpression { "&&" compExpression } .
+
+expression       = andExpression { "||" andExpression } .
 
 while            = "while" "(" expression ")"
                              ( statement |
