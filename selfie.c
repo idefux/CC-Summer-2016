@@ -184,6 +184,8 @@ int S_IRUSR_IWUSR_IRGRP_IROTH = 420; // flags for rw-r--r-- file permissions
 int* outputName = (int*) 0;
 int  outputFD   = 1;
 
+int* freePointer = (int*) 0;
+
 // ------------------------- INITIALIZATION ------------------------
 
 void initLibrary() {
@@ -936,13 +938,16 @@ void implementOpen();
 void emitMalloc();
 void implementMalloc();
 
+void emitFree();
+void implementFree();
+
 // ------------------------ GLOBAL CONSTANTS -----------------------
 
 int debug_read   = 0;
 int debug_write  = 0;
 int debug_open   = 0;
 
-int debug_malloc = 0;
+int debug_malloc = 1;
 
 int SYSCALL_EXIT   = 4001;
 int SYSCALL_READ   = 4003;
@@ -950,6 +955,7 @@ int SYSCALL_WRITE  = 4004;
 int SYSCALL_OPEN   = 4005;
 
 int SYSCALL_MALLOC = 4045;
+int SYSCALL_FREE   = 4046;
 
 // -----------------------------------------------------------------
 // ----------------------- HYPSTER SYSCALLS ------------------------
@@ -4762,6 +4768,8 @@ int gr_variable(int offset) {
     createSymbolTableEntry(LOCAL_TABLE, (int*) "missing variable name", lineNumber, VARIABLE, type, 0, offset, 0, 0);
   }
 
+  free(arraySize);
+
   return variableSize / WORDSIZE;
 }
 
@@ -5497,6 +5505,7 @@ void selfie_compile() {
   emitWrite();
   emitOpen();
   emitMalloc();
+  emitFree();
 
   emitID();
   emitCreate();
@@ -6374,6 +6383,7 @@ void emitMalloc() {
 void implementMalloc() {
   int size;
   int bump;
+  int* prevAddress;
 
   if (debug_malloc) {
     print(binaryName);
@@ -6385,24 +6395,75 @@ void implementMalloc() {
 
   size = roundUp(*(registers+REG_A0), WORDSIZE);
 
-  bump = brk;
-
-  if (bump + size >= *(registers+REG_SP))
-    throwException(EXCEPTION_HEAPOVERFLOW, 0);
-  else {
-    *(registers+REG_V0) = bump;
-
-    brk = bump + size;
-
+  // only use freed memory for specific size
+  if (size == 2 * WORDSIZE && freePointer != 0) {
+    prevAddress = *freePointer;
+    *(registers+REG_V0) = freePointer;
+    freePointer = prevAddress;
     if (debug_malloc) {
       print(binaryName);
-      print((int*) ": actually mallocating ");
+      print((int*) ": reusing ");
       print(itoa(size, string_buffer, 10, 0, 0));
-      print((int*) " bytes at virtual address ");
+      print((int*) " bytes freed memory at virtual address ");
       print(itoa(bump, string_buffer, 16, 8, 0));
       println();
     }
+  } else {
+
+    bump = brk;
+
+    if (bump + size >= *(registers+REG_SP))
+      throwException(EXCEPTION_HEAPOVERFLOW, 0);
+    else {
+      *(registers+REG_V0) = bump;
+
+      brk = bump + size;
+
+      if (debug_malloc) {
+        print(binaryName);
+        print((int*) ": actually mallocating ");
+        print(itoa(size, string_buffer, 10, 0, 0));
+        print((int*) " bytes at virtual address ");
+        print(itoa(bump, string_buffer, 16, 8, 0));
+        println();
+      }
+    }
   }
+}
+
+void emitFree() {
+  createSymbolTableEntry(LIBRARY_TABLE, (int*) "free", 0, PROCEDURE, INTSTAR_T, 0, binaryLength, 0, 0);
+
+  emitIFormat(OP_LW, REG_SP, REG_A0, 0); // size
+  emitIFormat(OP_ADDIU, REG_SP, REG_SP, WORDSIZE);
+
+  emitIFormat(OP_ADDIU, REG_ZR, REG_V0, SYSCALL_FREE);
+  emitRFormat(OP_SPECIAL, 0, 0, 0, FCT_SYSCALL);
+
+  emitRFormat(OP_SPECIAL, REG_RA, 0, 0, FCT_JR);
+}
+
+void implementFree() {
+  int* addressToFree;
+  int bump;
+
+  if (debug_malloc) {
+    print(binaryName);
+    print((int*) ": trying to free address");
+    print(itoa(*(registers+REG_A0), string_buffer, 10, 0, 0));
+    println();
+  }
+
+  // needs global free pointer (head of free list)
+  // each free cell shall point to previous free cell
+
+  addressToFree = *(registers+REG_A0);
+
+  *addressToFree = freePointer;
+  freePointer = addressToFree;
+
+  *(registers+REG_V0) = 0;
+
 }
 
 // -----------------------------------------------------------------
@@ -6866,6 +6927,8 @@ void fct_syscall() {
       implementOpen();
     else if (*(registers+REG_V0) == SYSCALL_MALLOC)
       implementMalloc();
+    else if (*(registers+REG_V0) == SYSCALL_FREE)
+      implementFree();
     else if (*(registers+REG_V0) == SYSCALL_ID)
       implementID();
     else if (*(registers+REG_V0) == SYSCALL_CREATE)
