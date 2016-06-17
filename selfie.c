@@ -114,6 +114,8 @@ int roundUp(int n, int m);
 int* malloc(int size);
 void exit(int code);
 
+void free(int* address);
+
 int and(int a, int b);
 int not(int a);
 int or(int a, int b);
@@ -6396,16 +6398,26 @@ void implementMalloc() {
   size = roundUp(*(registers+REG_A0), WORDSIZE);
 
   // only use freed memory for specific size
-  if (size == 2 * WORDSIZE && freePointer != 0) {
-    prevAddress = *freePointer;
-    *(registers+REG_V0) = freePointer;
+  if (size == 2 * WORDSIZE && freePointer != (int*) 0) {
+
+    if (isValidVirtualAddress(freePointer)) {
+      if (isVirtualAddressMapped(pt, freePointer)) {
+        prevAddress = loadVirtualMemory(pt, freePointer);
+
+      } else
+        throwException(EXCEPTION_PAGEFAULT, freePointer);
+    } else
+      throwException(EXCEPTION_ADDRESSERROR, freePointer);
+
+    *(registers+REG_V0) = (int) freePointer;
     freePointer = prevAddress;
+
     if (debug_malloc) {
       print(binaryName);
       print((int*) ": reusing ");
       print(itoa(size, string_buffer, 10, 0, 0));
       print((int*) " bytes freed memory at virtual address ");
-      print(itoa(bump, string_buffer, 16, 8, 0));
+      print(itoa(*(registers+REG_V0), string_buffer, 16, 8, 0));
       println();
     }
   } else {
@@ -6432,7 +6444,7 @@ void implementMalloc() {
 }
 
 void emitFree() {
-  createSymbolTableEntry(LIBRARY_TABLE, (int*) "free", 0, PROCEDURE, INTSTAR_T, 0, binaryLength, 0, 0);
+  createSymbolTableEntry(LIBRARY_TABLE, (int*) "free", 0, PROCEDURE, VOID_T, 0, binaryLength, 0, 0);
 
   emitIFormat(OP_LW, REG_SP, REG_A0, 0); // size
   emitIFormat(OP_ADDIU, REG_SP, REG_SP, WORDSIZE);
@@ -6444,12 +6456,12 @@ void emitFree() {
 }
 
 void implementFree() {
-  int* addressToFree;
+  int addressToFree;
   int bump;
 
   if (debug_malloc) {
     print(binaryName);
-    print((int*) ": trying to free address");
+    print((int*) ": trying to free address ");
     print(itoa(*(registers+REG_A0), string_buffer, 10, 0, 0));
     println();
   }
@@ -6459,7 +6471,17 @@ void implementFree() {
 
   addressToFree = *(registers+REG_A0);
 
-  *addressToFree = freePointer;
+  //*addressToFree = (int) freePointer;
+
+  if (isValidVirtualAddress(addressToFree)) {
+    if (isVirtualAddressMapped(pt, addressToFree)) {
+      storeVirtualMemory(pt, addressToFree, freePointer);
+
+    } else
+      throwException(EXCEPTION_PAGEFAULT, addressToFree);
+  } else
+    throwException(EXCEPTION_ADDRESSERROR, addressToFree);
+
   freePointer = addressToFree;
 
   *(registers+REG_V0) = 0;
