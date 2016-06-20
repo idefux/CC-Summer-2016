@@ -2,7 +2,7 @@ int f() {
   int* a;
   int b;
 
-  a = (int*) malloc(2 * 4);
+  a = (int*) malloc(10 * 4);
 
   *a = 42;
   *(a + 1) = 43;

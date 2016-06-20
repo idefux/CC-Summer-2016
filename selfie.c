@@ -186,7 +186,7 @@ int S_IRUSR_IWUSR_IRGRP_IROTH = 420; // flags for rw-r--r-- file permissions
 int* outputName = (int*) 0;
 int  outputFD   = 1;
 
-int* freePointer = (int*) 0;
+int freePointer = 0;
 
 // ------------------------- INITIALIZATION ------------------------
 
@@ -463,6 +463,7 @@ void resetSymbolTables();
 void createSymbolTableEntry(int which, int* string, int line, int class, int type, int value, int address, int size1, int size2);
 int* searchSymbolTable(int* entry, int* string, int class);
 int* getSymbolTableEntry(int* string, int class);
+void freeSymbolTable(int* entry);
 
 int isUndefinedProcedure(int* entry);
 int reportUndefinedProcedures();
@@ -2395,6 +2396,16 @@ int* getSymbolTableEntry(int* string, int class) {
   }
 
   return searchSymbolTable(global_symbol_table, string, class);
+}
+
+void freeSymbolTable(int* entry) {
+  int* nextEntry;
+
+  while (entry != (int*) 0) {
+    nextEntry = getNextEntry(entry);
+    free(entry);
+    entry = nextEntry;
+  }
 }
 
 int isUndefinedProcedure(int* entry) {
@@ -4770,8 +4781,6 @@ int gr_variable(int offset) {
     createSymbolTableEntry(LOCAL_TABLE, (int*) "missing variable name", lineNumber, VARIABLE, type, 0, offset, 0, 0);
   }
 
-  free(arraySize);
-
   return variableSize / WORDSIZE;
 }
 
@@ -5068,6 +5077,8 @@ void gr_procedure(int* procedure, int returnType, int* operandInfo) {
 
   } else
     syntaxErrorUnexpected();
+
+  freeSymbolTable(local_symbol_table);
 
   local_symbol_table = (int*) 0;
 
@@ -6385,7 +6396,7 @@ void emitMalloc() {
 void implementMalloc() {
   int size;
   int bump;
-  int* prevAddress;
+  int prevAddress;
 
   if (debug_malloc) {
     print(binaryName);
@@ -6398,7 +6409,7 @@ void implementMalloc() {
   size = roundUp(*(registers+REG_A0), WORDSIZE);
 
   // only use freed memory for specific size
-  if (size == 2 * WORDSIZE && freePointer != (int*) 0) {
+  if (size == 10 * WORDSIZE && freePointer != 0) {
 
     if (isValidVirtualAddress(freePointer)) {
       if (isVirtualAddressMapped(pt, freePointer)) {
@@ -6462,7 +6473,7 @@ void implementFree() {
   if (debug_malloc) {
     print(binaryName);
     print((int*) ": trying to free address ");
-    print(itoa(*(registers+REG_A0), string_buffer, 10, 0, 0));
+    print(itoa(*(registers+REG_A0), string_buffer, 16, 8, 0));
     println();
   }
 
