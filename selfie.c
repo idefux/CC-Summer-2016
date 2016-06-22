@@ -1754,7 +1754,10 @@ int size_of_array(int arraySize1, int arraySize2, int type) {
   else if (arraySize1 > 0)
     return arraySize1 * size_of(type);
   else if (arraySize2 > 0) {
-    print((int*) "Illegal array declaration.");
+    print((int*) "Illegal array declaration of size ");
+    print((int*) itoa(arraySize2, string_buffer, 10, 0, 0));
+    print((int*) " in line ");
+    print(itoa(lineNumber, string_buffer, 10, 0, 0));
     println();
     exit(-1);
   } else
