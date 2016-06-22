@@ -950,7 +950,8 @@ int debug_read   = 0;
 int debug_write  = 0;
 int debug_open   = 0;
 
-int debug_malloc = 1;
+int debug_malloc = 0;
+int debug_free   = 0;
 
 int SYSCALL_EXIT   = 4001;
 int SYSCALL_READ   = 4003;
@@ -6427,7 +6428,7 @@ void implementMalloc() {
       print(binaryName);
       print((int*) ": reusing ");
       print(itoa(size, string_buffer, 10, 0, 0));
-      print((int*) " bytes freed memory at virtual address ");
+      print((int*) " bytes previously freed memory at virtual address ");
       print(itoa(*(registers+REG_V0), string_buffer, 16, 8, 0));
       println();
     }
@@ -6468,9 +6469,8 @@ void emitFree() {
 
 void implementFree() {
   int addressToFree;
-  int bump;
 
-  if (debug_malloc) {
+  if (debug_free) {
     print(binaryName);
     print((int*) ": trying to free address ");
     print(itoa(*(registers+REG_A0), string_buffer, 16, 8, 0));
