@@ -5190,6 +5190,10 @@ int* gr_struct(int symbolTable, int addressOffset, int* operandInfo) {
 
       if (symbol == SYM_LBRACKET)
         gr_arraySize(arraySize);
+      else {
+        arraySize->dimension1 = 0;
+        arraySize->dimension2 = 0;
+      }
 
       if (symbol == SYM_SEMICOLON) {
         createFieldEntry(identifier, udt, lineNumber, type, offset);
@@ -6413,7 +6417,7 @@ void implementMalloc() {
   size = roundUp(*(registers+REG_A0), WORDSIZE);
 
   // only use freed memory for specific size
-  if (size == 10 * WORDSIZE && freePointer != 0) {
+  if ((size == 10 * WORDSIZE) && (freePointer != 0)) {
 
     if (isValidVirtualAddress(freePointer)) {
       if (isVirtualAddressMapped(pt, freePointer)) {
@@ -6424,7 +6428,7 @@ void implementMalloc() {
     } else
       throwException(EXCEPTION_ADDRESSERROR, freePointer);
 
-    *(registers+REG_V0) = (int) freePointer;
+    *(registers+REG_V0) = freePointer;
     freePointer = prevAddress;
 
     if (debug_malloc) {
