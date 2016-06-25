@@ -576,7 +576,6 @@ int isStarOrDivOrModulo();
 int isPlusOrMinus();
 int isComparison();
 int isShiftLeftOrRight();
-int isBooleanOperator();
 
 int lookForFactor();
 int lookForStatement();
@@ -642,8 +641,8 @@ void gr_initialization(int* name, int offset, int type);
 void gr_procedure(int* procedure, int returnType, int* operandInfo);
 struct SymbolTable* gr_struct(int symbolTable, int addressOffset, int* operandInfo);
 void gr_arraySize(struct ArraySize* arraySize);
-// Stefan TODO: void gr_arrayIndex(int* operandInfo);
-int gr_structAccess();
+int  gr_arrayIndex(int* variable, int* operandInfo);
+int  gr_structAccess();
 void gr_cstar();
 
 // ------------------------ GLOBAL CONSTANTS -----------------------
@@ -2228,8 +2227,7 @@ int getSymbol() {
     }
 
     SYMBOLS[symbol][1] = SYMBOLS[symbol][1] + 1;
-    return symbol;
-}
+    return symbol;}
 
 void printSymbols() {
   int i;
@@ -2247,7 +2245,6 @@ void printSymbols() {
     println();
     i = i + 1;
   }
-
 }
 
 void createUdtTableEntry(int* identifier, int line) {
@@ -2320,7 +2317,6 @@ int* searchFieldTable(int* field, int* identifier) {
 
   return (int*) 0;
 }
-
 
 int* getFieldTableEntry(int* udt, int* identifier) {
   return searchFieldTable(getUdtFields(udt), identifier);
@@ -2538,15 +2534,6 @@ int isShiftLeftOrRight() {
       return 1;
   else
       return 0;
-}
-
-int isBooleanOperator() {
-  if (symbol == SYM_LOGICALAND)
-    return 1;
-  else if (symbol == SYM_LOGICALOR)
-    return 1;
-  else
-    return 0;
 }
 
 int lookForFactor() {
@@ -3121,9 +3108,7 @@ int gr_factor(int* operandInfo) {
   int cast;
   int type;
   struct SymbolTable* entry;
-
   int* variableOrProcedureName;
-
   int itype;
 
   unsetConstant(operandInfo);
@@ -3253,56 +3238,10 @@ int gr_factor(int* operandInfo) {
 
     // identifier "[" ... "]" array access
     } else if (symbol == SYM_LBRACKET) {
-      getSymbol();
 
-      // assert: allocatedTemporaries == n
+      type = gr_arrayIndex(variableOrProcedureName, operandInfo);
 
-      itype = gr_expression(operandInfo);
-
-      if (itype != INT_T)
-        typeWarning(INT_T, itype);
-
-      if (symbol == SYM_RBRACKET) {
-        getSymbol();
-
-        if (symbol == SYM_LBRACKET) {
-          getSymbol();
-
-          itype = gr_expression(operandInfo);
-
-          if (itype != INT_T)
-            typeWarning(INT_T, itype);
-
-          if (symbol == SYM_RBRACKET) {
-
-            // Load from array 2 dim
-            entry = getArray(variableOrProcedureName);
-
-            load_array_address(entry, 2);
-
-            emitIFormat(OP_LW, currentTemporary(), currentTemporary(), 0);
-
-            getSymbol();
-
-          } else
-            syntaxErrorSymbol(SYM_RBRACKET);
-
-
-        } else {
-          // assert: allocatedTemporaries == n + 1
-
-          entry = getArray(variableOrProcedureName);
-
-          load_array_address(entry, 1);
-
-          emitIFormat(OP_LW, currentTemporary(), currentTemporary(), 0);
-
-          //tfree(1);
-
-          // assert: allocatedTemporaries == n + 1
-        }
-      } else
-        syntaxErrorSymbol(SYM_RBRACKET);
+      emitIFormat(OP_LW, currentTemporary(), currentTemporary(), 0);
 
     } else if (symbol == SYM_STRUCTACCESS) {
 
@@ -4586,70 +4525,25 @@ void gr_statement(int* operandInfo) {
 
     // identifier [ arrayIndex ] [structAccess] = expression
     } else if (symbol == SYM_LBRACKET) {
+
+      ltype = gr_arrayIndex(variableOrProcedureName, operandInfo);
+
+      if (symbol != SYM_ASSIGN)
+        syntaxErrorSymbol(SYM_ASSIGN);
+
       getSymbol();
 
-      // get array index
-      itype = gr_expression(operandInfo);
+      rtype = gr_expression(operandInfo);
 
-      if (itype != INT_T)
-        typeWarning(INT_T, itype);
-
-      if (symbol == SYM_RBRACKET)
-        getSymbol();
-      else
-        syntaxErrorSymbol(SYM_RBRACKET);
-
-      if (symbol == SYM_LBRACKET) {
-        getSymbol();
-
-        // get array index
-        itype = gr_expression(operandInfo);
-
-        if (itype != INT_T)
-          typeWarning(INT_T, itype);
-
-        if (symbol == SYM_RBRACKET)
-          getSymbol();
-        else
-          syntaxErrorSymbol(SYM_RBRACKET);
-
-          entry = getArray(variableOrProcedureName);
-
-          ltype = getType(entry);
-
-          load_array_address(entry, 2);
-
-          getSymbol();
-
-          rtype = gr_expression(operandInfo);
-
-          emitIFormat(OP_SW, previousTemporary(), currentTemporary(),0);
-          tfree(2);
-
-        // Stefan TODO: structAccess after arrayIndex
-        // Place code above into function gr_arrayIndex
-
-      } else {
-
-        entry = getArray(variableOrProcedureName);
-
-        ltype = getType(entry);
-
-        load_array_address(entry, 1);
-
-        getSymbol();
-
-        rtype = gr_expression(operandInfo);
-
-        emitIFormat(OP_SW, previousTemporary(), currentTemporary(),0);
-        tfree(2);
-
-      }
+      emitIFormat(OP_SW, previousTemporary(), currentTemporary(), 0);
+      tfree(2);
 
       if (symbol == SYM_SEMICOLON)
         getSymbol();
       else
         syntaxErrorSymbol(SYM_SEMICOLON);
+
+      // Stefan TODO: structAccess after arrayIndex
 
     // identifier [structAccess] = expression
     } else if (symbol == SYM_STRUCTACCESS) {
@@ -4663,7 +4557,7 @@ void gr_statement(int* operandInfo) {
       if (ltype != rtype)
         typeWarning(ltype, rtype);
 
-      emitIFormat(OP_SW, previousTemporary(), currentTemporary(),0);
+      emitIFormat(OP_SW, previousTemporary(), currentTemporary(), 0);
       tfree(2);
 
 
@@ -5261,7 +5155,49 @@ void gr_arraySize(struct ArraySize* arraySize) {
     else
       syntaxErrorSymbol(SYM_RBRACKET);
   }
+}
 
+int gr_arrayIndex(int* variable, int* operandInfo) {
+  struct SymbolTable* entry;
+  int itype;
+  int ltype;
+  int dimensions;
+
+  dimensions = 1;
+  getSymbol();
+  itype = gr_expression(operandInfo);
+
+  if (itype != INT_T)
+    typeWarning(INT_T, itype);
+
+  if (symbol == SYM_RBRACKET)
+    getSymbol();
+  else
+    syntaxErrorSymbol(SYM_RBRACKET);
+
+  if (symbol == SYM_LBRACKET) {
+    getSymbol();
+
+    // get array index
+    itype = gr_expression(operandInfo);
+
+    if (itype != INT_T)
+      typeWarning(INT_T, itype);
+
+    if (symbol == SYM_RBRACKET)
+      getSymbol();
+    else
+      syntaxErrorSymbol(SYM_RBRACKET);
+
+    dimensions = 2;
+  }
+
+  entry = getArray(variable);
+  //ltype = getType(entry);
+  ltype = INT_T;
+  load_array_address(entry, dimensions);
+
+  return ltype;
 }
 
 int gr_structAccess() {
