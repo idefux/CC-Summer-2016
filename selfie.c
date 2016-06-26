@@ -2335,12 +2335,12 @@ void createSymbolTableEntry(int whichTable, int* string, int line, int class, in
 
 struct SymbolTable* searchSymbolTable(struct SymbolTable* entry, int* string, int class) {
   while (entry != (struct SymbolTable*) 0) {
-    if (stringCompare(string, getString(entry)))
-      if (class == getClass(entry))
+    if (stringCompare(string, entry->string))
+      if (class == entry->class)
         return entry;
 
     // keep looking
-    entry = getNextEntry(entry);
+    entry = entry->next;
   }
 
   return (struct SymbolTable*) 0;
@@ -2375,7 +2375,7 @@ void freeSymbolTable(struct SymbolTable* entry) {
   struct SymbolTable* nextEntry;
 
   while (entry != (struct SymbolTable*) 0) {
-    nextEntry = getNextEntry(entry);
+    nextEntry = entry->next;
     free(entry);
     entry = nextEntry;
   }
@@ -2384,16 +2384,16 @@ void freeSymbolTable(struct SymbolTable* entry) {
 int isUndefinedProcedure(struct SymbolTable* entry) {
   struct SymbolTable* libraryEntry;
 
-  if (getClass(entry) == PROCEDURE) {
+  if (entry->class == PROCEDURE) {
     // library procedures override regular procedures for bootstrapping
-    libraryEntry = searchSymbolTable(library_symbol_table, getString(entry), PROCEDURE);
+    libraryEntry = searchSymbolTable(library_symbol_table, entry->string, PROCEDURE);
 
     if (libraryEntry != (struct SymbolTable*) 0)
       entry = libraryEntry;
 
-    if (getAddress(entry) == 0)
+    if (entry->address == 0)
       return 1;
-    else if (getOpcode(loadBinary(getAddress(entry))) == OP_JAL)
+    else if (getOpcode(loadBinary(entry->address)) == OP_JAL)
       return 1;
   }
 
@@ -2412,14 +2412,14 @@ int reportUndefinedProcedures() {
     if (isUndefinedProcedure(entry)) {
       undefined = 1;
 
-      printLineNumber((int*) "error", getLineNumber(entry));
-      print(getString(entry));
+      printLineNumber((int*) "error", entry->lineNumber);
+      print(entry->string);
       print((int*) " undefined");
       println();
     }
 
     // keep looking
-    entry = getNextEntry(entry);
+    entry = entry->next;
   }
 
   return undefined;
@@ -2742,25 +2742,25 @@ int load_variable(int* variable) {
 
   talloc();
 
-  if (getClass(entry) == ARRAY) {
-    emitRFormat(OP_SPECIAL, REG_ZR, getScope(entry), currentTemporary(), FCT_ADDU);
+  if (entry->class == ARRAY) {
+    emitRFormat(OP_SPECIAL, REG_ZR, entry->scope, currentTemporary(), FCT_ADDU);
 
     talloc();
-    emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), getAddress(entry));
+    emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), entry->address);
 
     emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_ADDU);
     tfree(1);
 
     return INTSTAR_T;
 
-  } else if (getClass(entry) == UDT) {
+  } else if (entry->class == UDT) {
 
     // TODO: Next assignment
-    return getType(entry);
+    return entry->type;
 
   } else {
-    emitIFormat(OP_LW, getScope(entry), currentTemporary(), getAddress(entry));
-    return getType(entry);
+    emitIFormat(OP_LW, entry->scope, currentTemporary(), entry->address);
+    return entry->type;
   }
 }
 
@@ -2825,7 +2825,7 @@ void load_array_address(struct SymbolTable* entry, int dimensions) {
   if (dimensions == 2) {
     // sizeof(dimension2) * previousTemporary
     talloc();
-    emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), getSize2(entry));
+    emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), entry->size2);
     emitRFormat(OP_SPECIAL, currentTemporary(), previousPreviousTemporary(), 0, FCT_MULTU);
     emitRFormat(OP_SPECIAL, 0, 0, previousPreviousTemporary(), FCT_MFLO);
     tfree(1);
@@ -2835,9 +2835,9 @@ void load_array_address(struct SymbolTable* entry, int dimensions) {
   }
 
   talloc();
-  if (getType(entry) == INT_T)
+  if (entry->type == INT_T)
     emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), SIZEOFINT);
-  else if (getType(entry) == INTSTAR_T)
+  else if (entry->type == INTSTAR_T)
     emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), SIZEOFINTSTAR);
 
   emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), 0, FCT_MULTU);
@@ -2845,25 +2845,25 @@ void load_array_address(struct SymbolTable* entry, int dimensions) {
   tfree(1);
 
   // load address of first array element.
-  if (getClass(entry) == ARRAY) {
+  if (entry->class == ARRAY) {
 
     talloc();
     //address here is just offset from scope pointer ($gp or $fp)
-    emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), getAddress(entry));
+    emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), entry->address);
 
     // increase address of first element by array index * size of type => address of desired element
     emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_ADDU);
     tfree(1);
 
     // get scope pointer and add address offset to it e.g. $fp + address offset
-    emitRFormat(OP_SPECIAL, getScope(entry), currentTemporary(), currentTemporary(), FCT_ADDU);
+    emitRFormat(OP_SPECIAL, entry->scope, currentTemporary(), currentTemporary(), FCT_ADDU);
 
-  } else if (getClass(entry) == VARIABLE) {
+  } else if (entry->class == VARIABLE) {
 
     // currentTemp holds index * 4
-    // Now get address of first array element by loading from getAddress(entry)
+    // Now get address of first array element by loading from entry->address
     talloc();
-    emitIFormat(OP_LW, getScope(entry), currentTemporary(), getAddress(entry));
+    emitIFormat(OP_LW, entry->scope, currentTemporary(), entry->address);
 
     // Now add index offset to address
     emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), previousTemporary(), FCT_ADDU);
@@ -2883,21 +2883,21 @@ int help_call_codegen(struct SymbolTable* entry, int* procedure) {
     type = INT_T; //assume default return type 'int'
 
   } else {
-    type = getType(entry);
+    type = entry->type;
 
-    if (getAddress(entry) == 0) {
+    if (entry->address == 0) {
       // CASE 2: function call, no definition, but declared.
       setAddress(entry, binaryLength);
 
       emitJFormat(OP_JAL, 0);
-    } else if (getOpcode(loadBinary(getAddress(entry))) == OP_JAL) {
+    } else if (getOpcode(loadBinary(entry->address)) == OP_JAL) {
       // CASE 3: function call, no declaration
-      emitJFormat(OP_JAL, getAddress(entry) / WORDSIZE);
+      emitJFormat(OP_JAL, entry->address / WORDSIZE);
 
       setAddress(entry, binaryLength - 2 * WORDSIZE);
     } else
       // CASE 4: function defined, use the address
-      emitJFormat(OP_JAL, getAddress(entry) / WORDSIZE);
+      emitJFormat(OP_JAL, entry->address / WORDSIZE);
   }
 
   return type;
@@ -4546,7 +4546,7 @@ void gr_statement(int* operandInfo) {
     } else if (symbol == SYM_ASSIGN) {
       entry = getVariable(variableOrProcedureName);
 
-      ltype = getType(entry);
+      ltype = entry->type;
 
       getSymbol();
 
@@ -4555,7 +4555,7 @@ void gr_statement(int* operandInfo) {
       if (ltype != rtype)
         typeWarning(ltype, rtype);
 
-      emitIFormat(OP_SW, getScope(entry), currentTemporary(), getAddress(entry));
+      emitIFormat(OP_SW, entry->scope, currentTemporary(), entry->address);
 
       tfree(1);
 
@@ -4578,7 +4578,7 @@ void gr_statement(int* operandInfo) {
   else if (symbol == SYM_RETURN) {
     entry = getSymbolTableEntry(currentProcedureName, PROCEDURE);
 
-    gr_return(getType(entry), operandInfo);
+    gr_return(entry->type, operandInfo);
 
     if (symbol == SYM_SEMICOLON)
       getSymbol();
@@ -4846,7 +4846,7 @@ void gr_procedure(int* procedure, int returnType, int* operandInfo) {
         setAddress(entry, parameters * WORDSIZE + 2 * WORDSIZE);
 
         parameters = parameters + 1;
-        entry    = getNextEntry(entry);
+        entry    = entry->next;
       }
 
       if (symbol == SYM_RPARENTHESIS)
@@ -4875,9 +4875,9 @@ void gr_procedure(int* procedure, int returnType, int* operandInfo) {
     if (entry == (struct SymbolTable*) 0)
       createSymbolTableEntry(GLOBAL_TABLE, currentProcedureName, lineNumber, PROCEDURE, returnType, 0, binaryLength, 0, 0);
     else {
-      if (getAddress(entry) != 0) {
-        if (getOpcode(loadBinary(getAddress(entry))) == OP_JAL)
-          fixlink_absolute(getAddress(entry), functionStart);
+      if (entry->address != 0) {
+        if (getOpcode(loadBinary(entry->address)) == OP_JAL)
+          fixlink_absolute(entry->address, functionStart);
         else {
           printLineNumber((int*) "error", lineNumber);
           print((int*) "multiple definitions of ");
@@ -4889,8 +4889,8 @@ void gr_procedure(int* procedure, int returnType, int* operandInfo) {
       setLineNumber(entry, lineNumber);
       setAddress(entry, functionStart);
 
-      if (getType(entry) != returnType)
-        typeWarning(getType(entry), returnType);
+      if (entry->type != returnType)
+        typeWarning(entry->type, returnType);
 
       setType(entry, returnType);
     }
@@ -4906,7 +4906,7 @@ void gr_procedure(int* procedure, int returnType, int* operandInfo) {
 
         entry = gr_struct(LOCAL_TABLE, localVariables, operandInfo);
 
-        if (getClass(entry) == VARIABLE) {
+        if (entry->class == VARIABLE) {
           localVariables = localVariables + 1;
           setAddress(entry, -localVariables * WORDSIZE);
         }
@@ -5169,7 +5169,7 @@ int gr_arrayIndex(int* variable, int* operandInfo) {
   }
 
   entry = getArray(variable);
-  //ltype = getType(entry);
+  //ltype = entry->type;
   ltype = INT_T;
   load_array_address(entry, dimensions);
 
@@ -5189,7 +5189,7 @@ int gr_structAccess() {
 
   if (symbol == SYM_IDENTIFIER) {
     // check if identifier is a field of struct_type
-    udt = getUdtTableEntryByIndex(getType(entry));
+    udt = getUdtTableEntryByIndex(entry->type);
     field = getFieldTableEntry(udt, identifier);
 
     if (field == (int*) 0) {
@@ -5208,9 +5208,9 @@ int gr_structAccess() {
     talloc();
 
     // only pointer to struct for now -> dereference
-    emitIFormat(OP_LW, getScope(entry), currentTemporary(), getAddress(entry));
+    emitIFormat(OP_LW, entry->scope, currentTemporary(), entry->address);
 
-    //emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), getAddress(entry));
+    //emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), entry-aAddress);
     emitIFormat(OP_ADDIU, currentTemporary(), currentTemporary(), getFieldOffset(field));
 
   } else
@@ -5255,8 +5255,8 @@ void gr_cstar() {
         syntaxErrorSymbol(SYM_IDENTIFIER);
     } else if (symbol == SYM_STRUCT) {
       entry = gr_struct(GLOBAL_TABLE, allocatedMemory, operandInfo);
-      if (getClass(entry) == VARIABLE) {
-        // Stefan TODO: allocatedMemory = allocatedMemory + size_of(getType(entry));
+      if (entry->class == VARIABLE) {
+        // Stefan TODO: allocatedMemory = allocatedMemory + size_of(entry->type);
         // only pointer to struct for now
         allocatedMemory = allocatedMemory + SIZEOFSTRUCTSTAR;
         setAddress(entry, -allocatedMemory);
@@ -5773,17 +5773,17 @@ void emitGlobalsStrings() {
 
   // allocate space for global variables and copy strings
   while ((int) entry != 0) {
-    if (getClass(entry) == VARIABLE) {
-      storeBinary(binaryLength, getValue(entry));
+    if (entry->class == VARIABLE) {
+      storeBinary(binaryLength, entry->value);
 
       binaryLength = binaryLength + WORDSIZE;
-    } else if (getClass(entry) == STRING)
-      binaryLength = copyStringToBinary(getString(entry), binaryLength);
-    else if (getClass(entry) == ARRAY)
-      binaryLength =  binaryLength + size_of_array(getSize1(entry), getSize2(entry), getType(entry));
+    } else if (entry->class == STRING)
+      binaryLength = copyStringToBinary(entry->string, binaryLength);
+    else if (entry->class == ARRAY)
+      binaryLength =  binaryLength + size_of_array(entry->size1, entry->size2, entry->type);
 
 
-    entry = getNextEntry(entry);
+    entry = entry->next;
   }
 
   // assert: binaryLength == n + allocatedMemory
