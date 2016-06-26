@@ -491,28 +491,6 @@ int reportUndefinedProcedures();
 // |  9 | size2   | size of array dimension 2
 // +----+---------+
 
-struct SymbolTable* getNextEntry(struct SymbolTable* entry)  { return (struct SymbolTable*) entry->next; }
-int* getString(struct SymbolTable* entry)     { return (int*) entry->string; }
-int  getLineNumber(struct SymbolTable* entry) { return        entry->lineNumber; }
-int  getClass(struct SymbolTable* entry)      { return        entry->class; }
-int  getType(struct SymbolTable* entry)       { return        entry->type; }
-int  getValue(struct SymbolTable* entry)      { return        entry->value; }
-int  getAddress(struct SymbolTable* entry)    { return        entry->address; }
-int  getScope(struct SymbolTable* entry)      { return        entry->scope; }
-int  getSize1(struct SymbolTable* entry)      { return        entry->size1; }
-int  getSize2(struct SymbolTable* entry)      { return        entry->size2; }
-
-void setNextEntry(struct SymbolTable* entry, struct SymbolTable* next)    { entry->next = next; }
-void setString(struct SymbolTable* entry, int* identifier) { entry->string = identifier; }
-void setLineNumber(struct SymbolTable* entry, int line)    { entry->lineNumber = line; }
-void setClass(struct SymbolTable* entry, int class)        { entry->class = class; }
-void setType(struct SymbolTable* entry, int type)          { entry->type = type; }
-void setValue(struct SymbolTable* entry, int value)        { entry->value = value; }
-void setAddress(struct SymbolTable* entry, int address)    { entry->address = address; }
-void setScope(struct SymbolTable* entry, int scope)        { entry->scope = scope; }
-void setSize1(struct SymbolTable* entry, int size)         { entry->size1 = size; }
-void setSize2(struct SymbolTable* entry, int size)         { entry->size2 = size; }
-
 // ------------------------ GLOBAL CONSTANTS -----------------------
 
 // classes
@@ -2307,28 +2285,28 @@ void createSymbolTableEntry(int whichTable, int* string, int line, int class, in
 
   newEntry = (struct SymbolTable*) malloc(2 * SIZEOFINTSTAR + 8 * SIZEOFINT);
 
-  setString(newEntry, string);
-  setLineNumber(newEntry, line);
-  setClass(newEntry, class);
-  setType(newEntry, type);
-  setValue(newEntry, value);
-  setAddress(newEntry, address);
-  setSize1(newEntry, size1);
-  setSize2(newEntry, size2);
+  newEntry->string = string;
+  newEntry->lineNumber = line;
+  newEntry->class = class;
+  newEntry->type = type;
+  newEntry->value = value;
+  newEntry->address = address;
+  newEntry->size1 = size1;
+  newEntry->size2 = size2;
 
   // create entry at head of symbol table
   if (whichTable == GLOBAL_TABLE) {
-    setScope(newEntry, REG_GP);
-    setNextEntry(newEntry, global_symbol_table);
+    newEntry->scope = REG_GP;
+    newEntry->next = global_symbol_table;
     global_symbol_table = newEntry;
   } else if (whichTable == LOCAL_TABLE) {
-    setScope(newEntry, REG_FP);
-    setNextEntry(newEntry, local_symbol_table);
+    newEntry->scope = REG_FP;
+    newEntry->next = local_symbol_table;
     local_symbol_table = newEntry;
   } else {
     // library procedures
-    setScope(newEntry, REG_GP);
-    setNextEntry(newEntry, library_symbol_table);
+    newEntry->scope = REG_GP;
+    newEntry->next = library_symbol_table;
     library_symbol_table = newEntry;
   }
 }
@@ -2887,14 +2865,14 @@ int help_call_codegen(struct SymbolTable* entry, int* procedure) {
 
     if (entry->address == 0) {
       // CASE 2: function call, no definition, but declared.
-      setAddress(entry, binaryLength);
+      entry->address = binaryLength;
 
       emitJFormat(OP_JAL, 0);
     } else if (getOpcode(loadBinary(entry->address)) == OP_JAL) {
       // CASE 3: function call, no declaration
       emitJFormat(OP_JAL, entry->address / WORDSIZE);
 
-      setAddress(entry, binaryLength - 2 * WORDSIZE);
+      entry->address = binaryLength - 2 * WORDSIZE;
     } else
       // CASE 4: function defined, use the address
       emitJFormat(OP_JAL, entry->address / WORDSIZE);
@@ -4843,7 +4821,7 @@ void gr_procedure(int* procedure, int returnType, int* operandInfo) {
 
       while (parameters < numberOfParameters) {
         // 8 bytes offset to skip frame pointer and link
-        setAddress(entry, parameters * WORDSIZE + 2 * WORDSIZE);
+        entry->address = parameters * WORDSIZE + 2 * WORDSIZE;
 
         parameters = parameters + 1;
         entry    = entry->next;
@@ -4886,13 +4864,13 @@ void gr_procedure(int* procedure, int returnType, int* operandInfo) {
         }
       }
 
-      setLineNumber(entry, lineNumber);
-      setAddress(entry, functionStart);
+      entry->lineNumber = lineNumber;
+      entry->address = functionStart;
 
       if (entry->type != returnType)
         typeWarning(entry->type, returnType);
 
-      setType(entry, returnType);
+      entry->type = returnType;
     }
 
     getSymbol();
@@ -4908,7 +4886,7 @@ void gr_procedure(int* procedure, int returnType, int* operandInfo) {
 
         if (entry->class == VARIABLE) {
           localVariables = localVariables + 1;
-          setAddress(entry, -localVariables * WORDSIZE);
+          entry->address = -localVariables * WORDSIZE;
         }
 
       } else {
@@ -5259,7 +5237,7 @@ void gr_cstar() {
         // Stefan TODO: allocatedMemory = allocatedMemory + size_of(entry->type);
         // only pointer to struct for now
         allocatedMemory = allocatedMemory + SIZEOFSTRUCTSTAR;
-        setAddress(entry, -allocatedMemory);
+        entry->address = -allocatedMemory;
       }
 
     } else {
