@@ -113,12 +113,8 @@ int roundUp(int n, int m);
 
 int* malloc(int size);
 void exit(int code);
-
 void free(int* address);
 
-int and(int a, int b);
-int not(int a);
-int or(int a, int b);
 int size_of(int type);
 int size_of_array(int arraySize1, int arraySize2, int type);
 
@@ -635,8 +631,6 @@ void gr_statement(int* operandInfo);
 int  gr_type();
 int  gr_variable(int offset);
 int  gr_argument();
-//void gr_structIdentifier(int symbolTable);
-//void gr_structField(int* udt, int offset);
 void gr_initialization(int* name, int offset, int type);
 void gr_procedure(int* procedure, int returnType, int* operandInfo);
 struct SymbolTable* gr_struct(int symbolTable, int addressOffset, int* operandInfo);
@@ -812,7 +806,6 @@ int OP_SW      = 43;
 int* OPCODES; // array of strings representing MIPS opcodes
 
 int FCT_SLL     = 0;
-//int FCT_NOP     = 0;
 int FCT_SRL     = 2;
 int FCT_SLLV    = 4;
 int FCT_SRLV    = 6;
@@ -1700,23 +1693,6 @@ int roundUp(int n, int m) {
     return n - n % m;
 }
 
-int and(int a, int b) {
-    if (a) {
-        if (b)
-            return 1;
-        else
-            return 0;
-    } else
-        return 0;
-}
-
-int not(int a) {
-  if (a)
-    return 0;
-  else
-    return 1;
-}
-
 int or(int a, int b) {
   if (a)
     return 1;
@@ -1748,7 +1724,7 @@ int size_of(int type) {
 }
 
 int size_of_array(int arraySize1, int arraySize2, int type) {
-  if (and(arraySize1 > 0, arraySize2 > 0))
+  if ((arraySize1 > 0) && (arraySize2 > 0))
     return arraySize1 * arraySize2 * size_of(type);
   else if (arraySize1 > 0)
     return arraySize1 * size_of(type);
@@ -3133,7 +3109,7 @@ int gr_factor(int* operandInfo) {
     getSymbol();
 
     // cast: "(" "int" [ "*" ] ")"
-    if (or(symbol == SYM_INT, symbol == SYM_STRUCT)) {
+    if ((symbol == SYM_INT) || (symbol == SYM_STRUCT)) {
       hasCast = 1;
 
       cast = gr_type();
@@ -3202,7 +3178,7 @@ int gr_factor(int* operandInfo) {
 
       type = gr_expression(operandInfo);
 
-      if (and((isControlFlowMode(operandInfo) == 0), isInvertOperator(operandInfo))) {
+      if ((isControlFlowMode(operandInfo) == 0) && (isInvertOperator(operandInfo))) {
         emit_InvertBoolean();
         unsetInvertOperator(operandInfo);
       }
@@ -3391,7 +3367,7 @@ int gr_term(int* operandInfo) {
     rIsConstant = isConstant(operandInfo);
     rValue = getOperandsValue(operandInfo);
 
-    if (and(operationPending, not(rIsConstant))) {
+    if ((operationPending && !(rIsConstant))) {
       // load previous value n-1, this is stored in lValue
       delayedLoading(lIsConstant, lValue, 0, 0);
 
@@ -3409,7 +3385,7 @@ int gr_term(int* operandInfo) {
       unsetConstant(operandInfo);
 
     // previous sequence was non-constant, constant. now is constant. can fold
-    } else if (and(lIsConstant, rIsConstant)) {
+    } else if (lIsConstant && rIsConstant) {
       ltype = fold_term(lValue, rValue, ltype, rtype, operatorSymbol, operandInfo);
 
       // operationPending stays active
@@ -3602,7 +3578,7 @@ int gr_simpleExpression(int* operandInfo) {
     // previous sequence was non-constant, constant. now is non-constant
     // cannot fold, load constant value, emit pending operation
     // and emit current operation
-    if (and(operationPending, not(rIsConstant))) {
+    if (operationPending && !(rIsConstant)) {
       // load previous value n-1, this is stored in lValue
       delayedLoading(lIsConstant, lValue, 0, 0);
 
@@ -3620,7 +3596,7 @@ int gr_simpleExpression(int* operandInfo) {
       unsetConstant(operandInfo);
 
     // previous sequence was non-constant, constant. now is constant. can fold
-    } else if (and(lIsConstant, rIsConstant)) {
+    } else if (lIsConstant && rIsConstant) {
       ltype = fold_simpleExpression(lValue, rValue, ltype, rtype, operatorSymbol, operandInfo);
 
       // operationPending stays active
@@ -3756,7 +3732,7 @@ int gr_extExpression(int* operandInfo) {
     // previous sequence was non-constant, constant. now is non-constant
     // cannot fold, load constant value, emit pending operation
     // and emit current operation
-    if (and(operationPending, not(rIsConstant))) {
+    if (operationPending && !(rIsConstant)) {
       // load previous value n-1, this is stored in lValue
       delayedLoading(lIsConstant, lValue, 0, 0);
 
@@ -3774,7 +3750,7 @@ int gr_extExpression(int* operandInfo) {
       unsetConstant(operandInfo);
 
     // previous sequence was non-constant, constant. now is constant. can fold
-    } else if (and(lIsConstant, rIsConstant)) {
+    } else if (lIsConstant && rIsConstant) {
       ltype = fold_extExpression(lValue, rValue, ltype, rtype, operatorSymbol, operandInfo);
 
       // operationPending stays active
@@ -3883,7 +3859,7 @@ int gr_compExpression(int* operandInfo) {
       unsetInvertOperator(operandInfo);
     }
 
-    if (and(lIsConstant, rIsConstant)) {
+    if (lIsConstant && rIsConstant) {
 
       if (operatorSymbol == SYM_EQUALITY)
         lValue = (lValue == rValue);
@@ -4923,7 +4899,7 @@ void gr_procedure(int* procedure, int returnType, int* operandInfo) {
 
     localVariables = 0;
 
-    while (or(symbol == SYM_INT, symbol == SYM_STRUCT)) {
+    while ((symbol == SYM_INT) || (symbol == SYM_STRUCT)) {
     //while (symbol == SYM_INT) {
 
       if (symbol == SYM_STRUCT) {
