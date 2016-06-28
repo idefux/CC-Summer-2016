@@ -29,7 +29,7 @@ Implementation of "not" operator is handled only at compile time and does not em
 But the not operator can also be used in data flow (*x = !y*). In this case the operator needs to be handled at runtime by emitting some instructions.
 
 Struct access:
-SymbolTable entries are built upon the type struct SymbolTable. It works with some exceptions. Cannot do nested struct accesses e.g. (s1->fieldA->fieldZ). Cannot access arrays inside structs e.g. (s1->fieldA[0]).
+SymbolTable entries are built upon the type struct SymbolTable. It works with some exceptions. Can access arrays inside structs e.g. (s1->fieldA[0]). Cannot do nested struct accesses e.g. (s1->fieldA->fieldZ).
 
 Struct Declarations:
 Works. I've choosen a rather sophisticated way by introducing a new table "user-defined-types" with references to field entries. With this it is easily extensible for other kinds of user types. Furthermore, for me it didn't feel right to store struct fields into the SymbolTable.

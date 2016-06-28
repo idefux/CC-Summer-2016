@@ -425,7 +425,7 @@ void setUdtIndex(int* udt, int index)            { *(udt + 5) = index; }
 // --------------------- STRUCT FIELDS TABLE -----------------------
 // -----------------------------------------------------------------
 
-void createFieldEntry(int* identifier, int* udt, int line, int type, int offset);
+void createFieldEntry(int* identifier, int* udt, int line, int type, int offset, int size1, int size2);
 int* searchFieldTable(int* entry, int* identifier);
 int* getFieldTableEntry(int* udt, int* identifier);
 
@@ -436,6 +436,8 @@ int* getFieldTableEntry(int* udt, int* identifier);
 // |  2 | line#   | source line number
 // |  3 | type    | type of field
 // |  4 | offset  | offset (from start of struct)
+// |  5 | size1   | size 1 (array dimension 1)
+// |  6 | size2   | size 2 (array dimension 2)
 // +----+---------+
 
 int* getFieldNext(int* field)       { return (int*) *field; }
@@ -443,12 +445,16 @@ int* getFieldIdentifier(int* field) { return (int*) *(field + 1); }
 int  getFieldLineNumber(int* field) { return        *(field + 2); }
 int  getFieldType(int* field)       { return        *(field + 3); }
 int  getFieldOffset(int* field)     { return        *(field + 4); }
+int  getFieldSize1(int* field)      { return        *(field + 5); }
+int  getFieldSize2(int* field)      { return        *(field + 6); }
 
 void setFieldNext(int* field, int* next)             { *field       = (int) next; }
 void setFieldIdentifier(int* field, int* identifier) { *(field + 1) = (int) identifier; }
 void setFieldLineNumber(int* field, int line)        { *(field + 2) = line; }
 void setFieldType(int* field, int type)              { *(field + 3) = type; }
 void setFieldOffset(int* field, int offset)          { *(field + 4) = offset; }
+void setFieldSize1(int* field, int size1)            { *(field + 5) = size1; }
+void setFieldSize2(int* field, int size2)            { *(field + 6) = size2; }
 
 // -----------------------------------------------------------------
 // ------------------------- SYMBOL TABLE --------------------------
@@ -613,7 +619,7 @@ void gr_initialization(int* name, int offset, int type);
 void gr_procedure(int* procedure, int returnType, int* operandInfo);
 struct SymbolTable* gr_struct(int symbolTable, int addressOffset, int* operandInfo);
 void gr_arraySize(struct ArraySize* arraySize);
-int  gr_arrayIndex(int* variable, int* operandInfo);
+int  gr_arrayIndex(int* operandInfo);
 int  gr_structAccess();
 void gr_cstar();
 
@@ -2247,16 +2253,18 @@ int* getUdtTableEntryByIndex(int index) {
   return searchUdtTableByIndex(udt_table, index);
 }
 
-void createFieldEntry(int* identifier, int* udt, int line, int type, int offset) {
+void createFieldEntry(int* identifier, int* udt, int line, int type, int offset, int size1, int size2) {
   int* newEntry;
 
-  newEntry = malloc(2 * SIZEOFINTSTAR + 3 * SIZEOFINT);
+  newEntry = malloc(2 * SIZEOFINTSTAR + 5 * SIZEOFINT);
 
   setFieldIdentifier(newEntry, identifier);
   setFieldLineNumber(newEntry, line);
   setFieldType(newEntry, type);
   setFieldOffset(newEntry, offset);
   setFieldNext(newEntry, getUdtFields(udt));
+  setFieldSize1(newEntry, size1);
+  setFieldSize2(newEntry, size2);
   setUdtFields(udt, newEntry);
 }
 
@@ -3063,7 +3071,7 @@ int gr_factor(int* operandInfo) {
   int type;
   struct SymbolTable* entry;
   int* variableOrProcedureName;
-  int itype;
+  int arrayDimensions;
 
   unsetConstant(operandInfo);
 
@@ -3193,7 +3201,11 @@ int gr_factor(int* operandInfo) {
     // identifier "[" ... "]" array access
     } else if (symbol == SYM_LBRACKET) {
 
-      type = gr_arrayIndex(variableOrProcedureName, operandInfo);
+      arrayDimensions = gr_arrayIndex(operandInfo);
+
+      entry = getArray(variableOrProcedureName);
+      type = INT_T;
+      load_array_address(entry, arrayDimensions);
 
       emitIFormat(OP_LW, currentTemporary(), currentTemporary(), 0);
 
@@ -4375,7 +4387,7 @@ void gr_statement(int* operandInfo) {
   int rtype;
   int* variableOrProcedureName;
   struct SymbolTable* entry;
-  int itype;
+  int arrayDimensions;
 
   // assert: allocatedTemporaries == 0;
 
@@ -4480,7 +4492,12 @@ void gr_statement(int* operandInfo) {
     // identifier [ arrayIndex ] [structAccess] = expression
     } else if (symbol == SYM_LBRACKET) {
 
-      ltype = gr_arrayIndex(variableOrProcedureName, operandInfo);
+      arrayDimensions = gr_arrayIndex(operandInfo);
+
+      entry = getArray(variableOrProcedureName);
+      ltype = INT_T;
+
+      load_array_address(entry, arrayDimensions);
 
       if (symbol != SYM_ASSIGN)
         syntaxErrorSymbol(SYM_ASSIGN);
@@ -5041,7 +5058,7 @@ struct SymbolTable* gr_struct(int symbolTable, int addressOffset, int* operandIn
       }
 
       if (symbol == SYM_SEMICOLON) {
-        createFieldEntry(identifier, udt, lineNumber, type, offset);
+        createFieldEntry(identifier, udt, lineNumber, type, offset, arraySize->dimension1, arraySize->dimension2);
         offset = offset + size_of_array(arraySize->dimension1, arraySize->dimension2, type);
 
         getSymbol();
@@ -5111,10 +5128,8 @@ void gr_arraySize(struct ArraySize* arraySize) {
   }
 }
 
-int gr_arrayIndex(int* variable, int* operandInfo) {
-  struct SymbolTable* entry;
+int gr_arrayIndex(int* operandInfo) {
   int itype;
-  int ltype;
   int dimensions;
 
   dimensions = 1;
@@ -5146,12 +5161,7 @@ int gr_arrayIndex(int* variable, int* operandInfo) {
     dimensions = 2;
   }
 
-  entry = getArray(variable);
-  //ltype = entry->type;
-  ltype = INT_T;
-  load_array_address(entry, dimensions);
-
-  return ltype;
+  return dimensions;
 }
 
 int gr_structAccess() {
@@ -5159,7 +5169,11 @@ int gr_structAccess() {
   struct SymbolTable* entry;
   int* field;
   int type;
+  int* operandInfo;
+  int arrayDimensions;
   // assert: symbol == "->"
+
+  operandInfo = malloc(6 * SIZEOFINT);
 
   entry = getVariable(identifier);
 
@@ -5179,17 +5193,57 @@ int gr_structAccess() {
 
     getSymbol();
 
-    // TODO: Check for array index
-
-    // TODO: Check for nested structAccess
-
     talloc();
 
     // only pointer to struct for now -> dereference
     emitIFormat(OP_LW, entry->scope, currentTemporary(), entry->address);
 
-    //emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), entry-aAddress);
     emitIFormat(OP_ADDIU, currentTemporary(), currentTemporary(), getFieldOffset(field));
+
+    // TODO: Check for array index
+    if (symbol == SYM_LBRACKET) {
+      arrayDimensions = gr_arrayIndex(operandInfo);
+    }
+
+    if (arrayDimensions == 1) {
+      // add dimension1 * sizeof(field_type)
+      // dimension1 is stored in currentTemporary
+      talloc();
+      emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), size_of(getFieldType(field)));
+
+      emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), 0, FCT_MULTU);
+      emitRFormat(OP_SPECIAL, 0, 0, previousTemporary(), FCT_MFLO);
+      tfree(1);
+
+      emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_ADDU);
+      tfree(1);
+
+    } else if (arrayDimensions == 2) {
+      // add dimension1 * sizeof(field_type) + dimension2 * sizeof(field_type)
+      // dimension1 is stored in previousTemporary
+      // dimension2 is stored in currentTemporary
+      talloc();
+      emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), size_of(getFieldType(field)));
+
+      emitRFormat(OP_SPECIAL, currentTemporary(), previousTemporary(), 0, FCT_MULTU);
+      emitRFormat(OP_SPECIAL, 0, 0, previousTemporary(), FCT_MFLO);
+      tfree(1);
+
+      talloc();
+      emitIFormat(OP_ADDIU, REG_ZR, currentTemporary(), size_of(getFieldType(field)));
+
+      emitRFormat(OP_SPECIAL, currentTemporary(), previousPreviousTemporary(), 0, FCT_MULTU);
+      emitRFormat(OP_SPECIAL, 0, 0, previousPreviousTemporary(), FCT_MFLO);
+      tfree(1);
+
+      emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_ADDU);
+      tfree(1);
+
+      emitRFormat(OP_SPECIAL, previousTemporary(), currentTemporary(), previousTemporary(), FCT_ADDU);
+      tfree(1);
+    }
+
+    // TODO: Check for nested structAccess
 
   } else
     syntaxErrorSymbol(SYM_IDENTIFIER);

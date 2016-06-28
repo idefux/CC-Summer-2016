@@ -6,6 +6,7 @@ test:
 	make test_self_compilation
 	make test_return_type
 	make test_global_initialization
+	make test_array_in_struct
 
 test_self_compilation: $(binaries) $(assemblies)
 
@@ -16,6 +17,10 @@ test_return_type: struct_return_type.c
 test_global_initialization: struct_global_initialization.c
 	../../selfie -c $<
 	../../selfie -c $< -d 1 | grep -E 'exit code 19'
+
+test_array_in_struct: array_in_struct*.c
+	../../selfie -c array_in_struct1.c -d 1 | grep 'exit code 429'
+	../../selfie -c array_in_struct2.c -d 1 | grep 'exit code 924'
 
 %.m: %.c
 	!(../../selfie -c $< | grep "error")
