@@ -120,6 +120,9 @@ test_logicalnot_controlflow: logicalnot_controlflow*.c
 	../../selfie -c logicalnot_controlflow9.c -d 1 | grep 'exit code 10'
 	../../selfie -c logicalnot_controlflow10.c -d 1 | grep 'exit code 77'
 	../../selfie -c logicalnot_controlflow11.c -d 1 | grep 'exit code 77'
+	../../selfie -c logicalnot_controlflow12.c -d 1 | grep 'exit code 333'
+	../../selfie -c logicalnot_controlflow13.c -d 1 | grep 'exit code 333'
+	../../selfie -c logicalnot_controlflow14.c -d 1 | grep 'exit code 77'
 
 test_logicalnot_data: logicalnot_data*.c
 	../../selfie -c logicalnot_data1.c -d 1 | grep 'exit code 0'
