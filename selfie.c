@@ -5203,7 +5203,8 @@ int gr_structAccess() {
     // TODO: Check for array index
     if (symbol == SYM_LBRACKET) {
       arrayDimensions = gr_arrayIndex(operandInfo);
-    }
+    } else
+      arrayDimensions = 0;
 
     if (arrayDimensions == 1) {
       // add dimension1 * sizeof(field_type)
